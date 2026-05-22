@@ -10,9 +10,9 @@ import { DEFAULT_APP_CONFIG as D } from '@shared/constants'
 import { convertCommaToLine, convertLineToComma, generateRandomInt } from '@shared/utils'
 
 export const ED2K_SEARCH_POLL_INTERVAL_MS = 1000
-export const ED2K_SEARCH_MIN_DURATION_MS = 3000
-export const ED2K_SEARCH_MAX_DURATION_MS = 13000
-export const ED2K_SEARCH_STABLE_POLLS = 2
+export const ED2K_SEARCH_MAX_DURATION_MS = 90000
+export const ED2K_SEARCH_MIN_TIMEOUT_SECONDS = 10
+export const ED2K_SEARCH_MAX_TIMEOUT_SECONDS = 600
 
 export type Ed2kSearchOutcome = 'completed' | 'cancelled' | 'failed'
 
@@ -24,6 +24,7 @@ export interface Ed2kForm {
   ed2kNodeList: string
   ed2kUploadSlots: number
   ed2kShareFiles: string
+  ed2kSearchTimeout: number
 }
 
 function splitLines(value: string): string[] {
@@ -52,6 +53,7 @@ export function buildEd2kForm(config: AppConfig): Ed2kForm {
     ed2kNodeList: config.ed2kNodeList ?? D.ed2kNodeList,
     ed2kUploadSlots: Number(config.ed2kUploadSlots ?? D.ed2kUploadSlots),
     ed2kShareFiles: (config.ed2kShareFiles ?? D.ed2kShareFiles).join('\n'),
+    ed2kSearchTimeout: Number(config.ed2kSearchTimeout ?? D.ed2kSearchTimeout),
   }
 }
 
@@ -74,6 +76,7 @@ export function transformEd2kForStore(f: Ed2kForm): Partial<AppConfig> {
     ed2kNodeList: String(f.ed2kNodeList).trim(),
     ed2kUploadSlots: Number(f.ed2kUploadSlots),
     ed2kShareFiles: normalizePathLines(f.ed2kShareFiles),
+    ed2kSearchTimeout: Number(f.ed2kSearchTimeout),
   }
 }
 
@@ -93,6 +96,13 @@ export function validateEd2kForm(f: Ed2kForm): string | null {
   }
   if (!Number.isInteger(f.ed2kUploadSlots) || f.ed2kUploadSlots < 1 || f.ed2kUploadSlots > 100) {
     return 'preferences.ed2k-invalid-upload-slots'
+  }
+  if (
+    !Number.isInteger(f.ed2kSearchTimeout) ||
+    f.ed2kSearchTimeout < ED2K_SEARCH_MIN_TIMEOUT_SECONDS ||
+    f.ed2kSearchTimeout > ED2K_SEARCH_MAX_TIMEOUT_SECONDS
+  ) {
+    return 'preferences.ed2k-invalid-search-timeout'
   }
   if (!validateServerLines(f.ed2kServer)) {
     return 'preferences.ed2k-invalid-server'
@@ -116,11 +126,9 @@ export interface Ed2kSearchPollState {
   previousResultCount: number
   stablePolls: number
   moreResults?: boolean
+  maxDurationMs?: number
 }
 
 export function shouldFinishEd2kSearchPoll(state: Ed2kSearchPollState): boolean {
-  if (state.elapsedMs >= ED2K_SEARCH_MAX_DURATION_MS) return true
-  if (state.elapsedMs < ED2K_SEARCH_MIN_DURATION_MS) return false
-  if (state.moreResults === false && state.stablePolls >= 1) return true
-  return state.resultCount === state.previousResultCount && state.stablePolls >= ED2K_SEARCH_STABLE_POLLS
+  return state.elapsedMs >= (state.maxDurationMs ?? ED2K_SEARCH_MAX_DURATION_MS)
 }

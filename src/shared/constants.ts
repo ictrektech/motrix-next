@@ -296,6 +296,7 @@ export const DEFAULT_APP_CONFIG = {
   ed2kNodeList: '',
   ed2kUploadSlots: 3,
   ed2kShareFiles: [] as string[],
+  ed2kSearchTimeout: 90,
   proxy: { enable: false, server: '', bypass: '', scope: ['download', 'update-app', 'update-trackers'] },
   protocols: { magnet: true, ed2k: true, thunder: false, motrixnext: true },
   clipboard: { enable: true, http: true, ftp: true, magnet: true, ed2k: true, thunder: true, btHash: true },

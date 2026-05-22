@@ -7,6 +7,7 @@
 
 use crate::aria2::types::*;
 use crate::error::AppError;
+use serde::de::DeserializeOwned;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -60,7 +61,7 @@ impl Aria2Client {
 
     /// Generic JSON-RPC call.  Handles request construction, token injection,
     /// HTTP transport, and response parsing.
-    async fn call<T: serde::de::DeserializeOwned>(
+    async fn call<T: DeserializeOwned>(
         &self,
         method: &str,
         extra_params: Vec<serde_json::Value>,
@@ -85,10 +86,11 @@ impl Aria2Client {
             .await
             .map_err(|e| AppError::Aria2(format!("HTTP request to aria2 failed: {e}")))?;
 
-        let body: JsonRpcResponse<T> = resp
-            .json::<JsonRpcResponse<T>>()
+        let bytes = resp
+            .bytes()
             .await
-            .map_err(|e| AppError::Aria2(format!("Failed to parse aria2 response: {e}")))?;
+            .map_err(|e| AppError::Aria2(format!("Failed to read aria2 response: {e}")))?;
+        let body: JsonRpcResponse<T> = parse_jsonrpc_response(&bytes, "aria2")?;
 
         if let Some(err) = body.error {
             return Err(AppError::Aria2(format!(
@@ -322,10 +324,12 @@ impl Aria2Client {
             .await
             .map_err(|e| AppError::Aria2(format!("HTTP request to aria2 failed: {e}")))?;
 
-        let body: JsonRpcResponse<Vec<serde_json::Value>> = resp
-            .json()
+        let bytes = resp
+            .bytes()
             .await
-            .map_err(|e| AppError::Aria2(format!("Failed to parse multicall response: {e}")))?;
+            .map_err(|e| AppError::Aria2(format!("Failed to read multicall response: {e}")))?;
+        let body: JsonRpcResponse<Vec<serde_json::Value>> =
+            parse_jsonrpc_response(&bytes, "multicall")?;
 
         if let Some(err) = body.error {
             return Err(AppError::Aria2(format!(
@@ -342,6 +346,15 @@ impl Aria2Client {
     pub async fn pause_all(&self) -> Result<String, AppError> {
         self.call("pauseAll", vec![]).await
     }
+}
+
+fn parse_jsonrpc_response<T: DeserializeOwned>(
+    bytes: &[u8],
+    context: &str,
+) -> Result<JsonRpcResponse<T>, AppError> {
+    let body = String::from_utf8_lossy(bytes);
+    serde_json::from_str::<JsonRpcResponse<T>>(&body)
+        .map_err(|e| AppError::Aria2(format!("Failed to parse {context} response: {e}")))
 }
 
 #[cfg(test)]
@@ -384,6 +397,20 @@ mod tests {
         let params = client.build_params(vec![]).await;
 
         assert!(params.is_empty());
+    }
+
+    #[test]
+    fn parse_jsonrpc_response_tolerates_invalid_utf8_in_string_values() {
+        let bytes =
+            b"{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"result\":{\"results\":[{\"name\":\"bad-\xFF-name\"}]}}";
+        let response: JsonRpcResponse<serde_json::Value> =
+            parse_jsonrpc_response(bytes, "aria2").expect("invalid UTF-8 should be replaced");
+        let result = response.result.expect("result must exist");
+        let name = result["results"][0]["name"]
+            .as_str()
+            .expect("name must stay readable");
+
+        assert_eq!(name, "bad-\u{FFFD}-name");
     }
 
     // ── Credential update ───────────────────────────────────────────

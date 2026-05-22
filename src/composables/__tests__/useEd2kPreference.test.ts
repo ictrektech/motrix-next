@@ -9,7 +9,6 @@ import {
   buildEd2kForm,
   buildEd2kSystemConfig,
   ED2K_SEARCH_MAX_DURATION_MS,
-  ED2K_SEARCH_MIN_DURATION_MS,
   getEd2kSearchToastKey,
   randomEd2kPort,
   shouldFinishEd2kSearchPoll,
@@ -27,6 +26,7 @@ const baseForm: Ed2kForm = {
   ed2kNodeList: '',
   ed2kUploadSlots: 3,
   ed2kShareFiles: '',
+  ed2kSearchTimeout: 90,
 }
 
 describe('buildEd2kForm', () => {
@@ -39,6 +39,7 @@ describe('buildEd2kForm', () => {
     expect(form.ed2kNodeList).toBe('')
     expect(form.ed2kUploadSlots).toBe(3)
     expect(form.ed2kShareFiles).toBe('')
+    expect(form.ed2kSearchTimeout).toBe(90)
   })
 
   it('renders persisted server and shared file lists as one item per line', () => {
@@ -81,6 +82,7 @@ describe('transformEd2kForStore', () => {
       ed2kServerList: ' /lists/server.met ',
       ed2kNodeList: ' /lists/nodes.dat ',
       ed2kShareFiles: ' /downloads/a.bin \n /downloads/b.bin ',
+      ed2kSearchTimeout: 120,
     })
 
     expect(result).toEqual({
@@ -90,6 +92,7 @@ describe('transformEd2kForStore', () => {
       ed2kNodeList: '/lists/nodes.dat',
       ed2kUploadSlots: 3,
       ed2kShareFiles: ['/downloads/a.bin', '/downloads/b.bin'],
+      ed2kSearchTimeout: 120,
     })
   })
 })
@@ -106,6 +109,11 @@ describe('validateEd2kForm', () => {
 
   it('rejects invalid upload slot counts', () => {
     expect(validateEd2kForm({ ...baseForm, ed2kUploadSlots: 0 })).toBe('preferences.ed2k-invalid-upload-slots')
+  })
+
+  it('rejects invalid search timeout values', () => {
+    expect(validateEd2kForm({ ...baseForm, ed2kSearchTimeout: 9 })).toBe('preferences.ed2k-invalid-search-timeout')
+    expect(validateEd2kForm({ ...baseForm, ed2kSearchTimeout: 601 })).toBe('preferences.ed2k-invalid-search-timeout')
   })
 
   it('rejects malformed ED2K server endpoints', () => {
@@ -148,27 +156,29 @@ describe('getEd2kSearchToastKey', () => {
 })
 
 describe('shouldFinishEd2kSearchPoll', () => {
-  it('keeps the search indicator active for the minimum search window', () => {
+  it('keeps searching with empty results until the configured timeout', () => {
     expect(
       shouldFinishEd2kSearchPoll({
-        elapsedMs: ED2K_SEARCH_MIN_DURATION_MS - 1,
+        elapsedMs: ED2K_SEARCH_MAX_DURATION_MS - 1000,
         resultCount: 0,
         previousResultCount: 0,
         stablePolls: 10,
         moreResults: false,
+        maxDurationMs: ED2K_SEARCH_MAX_DURATION_MS,
       }),
     ).toBe(false)
   })
 
-  it('finishes after results are stable or the maximum search window is reached', () => {
+  it('finishes only when the configured timeout is reached', () => {
     expect(
       shouldFinishEd2kSearchPoll({
-        elapsedMs: ED2K_SEARCH_MIN_DURATION_MS,
+        elapsedMs: ED2K_SEARCH_MAX_DURATION_MS - 1000,
         resultCount: 4,
         previousResultCount: 4,
         stablePolls: 2,
+        maxDurationMs: ED2K_SEARCH_MAX_DURATION_MS,
       }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       shouldFinishEd2kSearchPoll({
         elapsedMs: ED2K_SEARCH_MAX_DURATION_MS,
@@ -176,6 +186,7 @@ describe('shouldFinishEd2kSearchPoll', () => {
         previousResultCount: 3,
         stablePolls: 0,
         moreResults: true,
+        maxDurationMs: ED2K_SEARCH_MAX_DURATION_MS,
       }),
     ).toBe(true)
   })

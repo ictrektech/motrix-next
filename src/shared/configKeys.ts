@@ -23,6 +23,7 @@ const userKeys = [
   'ed2k-node-list',
   'ed2k-upload-slots',
   'ed2k-share-files',
+  'ed2k-search-timeout',
   'enable-upnp',
   'engine-bin-path',
   'extension-api-port',

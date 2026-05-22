@@ -16,6 +16,7 @@ import {
   NInputGroup,
   NInputNumber,
   NSelect,
+  NText,
 } from 'naive-ui'
 import { CloseOutline, DiceOutline, DownloadOutline, FolderOpenOutline, SearchOutline } from '@vicons/ionicons5'
 import { usePreferenceStore } from '@/stores/preference'
@@ -59,10 +60,22 @@ const currentSearchGid = ref('')
 const searchCancelled = ref(false)
 const searchCleanupDone = ref(false)
 const searchResults = ref<Ed2kSearchResult[]>([])
+const searchElapsedMs = ref(0)
 
 const searchActive = computed(() => searchState.value !== 'idle')
 const searchButtonText = computed(() =>
   searchActive.value ? t('preferences.ed2k-search-cancel') : t('preferences.ed2k-search-submit'),
+)
+const searchMaxDurationMs = computed(() => Math.max(1, Number(form.value.ed2kSearchTimeout || 90)) * 1000)
+const searchElapsedSeconds = computed(() => Math.floor(searchElapsedMs.value / 1000))
+const searchStatusText = computed(() =>
+  searchActive.value
+    ? t('preferences.ed2k-search-progress', {
+        elapsed: searchElapsedSeconds.value,
+        total: Math.floor(searchMaxDurationMs.value / 1000),
+        count: searchResults.value.length,
+      })
+    : t('preferences.ed2k-search-ready', { total: Math.floor(searchMaxDurationMs.value / 1000) }),
 )
 
 const fileTypeOptions = computed(() => [
@@ -150,11 +163,13 @@ async function pollSearchResults(gid: string): Promise<Ed2kSearchResult[]> {
   let previousResultCount = -1
   let stablePolls = 0
   let latestResults: Ed2kSearchResult[] = []
+  const maxDurationMs = searchMaxDurationMs.value
 
   while (searchState.value === 'searching') {
     await wait(ED2K_SEARCH_POLL_INTERVAL_MS)
     if (searchState.value !== 'searching') break
     elapsedMs += ED2K_SEARCH_POLL_INTERVAL_MS
+    searchElapsedMs.value = Math.min(elapsedMs, maxDurationMs)
 
     const payload = await getEd2kSearchResults({ gid })
     latestResults = payload.results ?? []
@@ -170,6 +185,7 @@ async function pollSearchResults(gid: string): Promise<Ed2kSearchResult[]> {
         previousResultCount,
         stablePolls,
         moreResults: typeof payload.moreResults === 'boolean' ? payload.moreResults : undefined,
+        maxDurationMs,
       })
     ) {
       break
@@ -196,6 +212,7 @@ async function handleSearch() {
   searchCancelled.value = false
   searchCleanupDone.value = false
   searchResults.value = []
+  searchElapsedMs.value = 0
   message.info(t('preferences.ed2k-search-started'))
   let gid = ''
   let outcome: 'completed' | 'cancelled' | 'failed' = 'completed'
@@ -234,6 +251,7 @@ async function handleSearch() {
     currentSearchGid.value = ''
     searchCancelled.value = false
     searchCleanupDone.value = false
+    searchElapsedMs.value = 0
   }
 }
 
@@ -450,6 +468,9 @@ onMounted(() => {
               <span :key="searchButtonText">{{ searchButtonText }}</span>
             </Transition>
           </NButton>
+          <Transition name="ed2k-search-status" mode="out-in">
+            <NText :key="searchStatusText" depth="3" class="ed2k-search-status">{{ searchStatusText }}</NText>
+          </Transition>
         </div>
       </NFormItem>
       <NFormItem :label="t('preferences.ed2k-search-type')">
@@ -457,6 +478,10 @@ onMounted(() => {
       </NFormItem>
       <NFormItem :label="t('preferences.ed2k-search-min-sources')">
         <NInputNumber v-model:value="searchMinSources" :min="1" :max="9999" style="width: 160px" />
+      </NFormItem>
+      <NFormItem :label="t('preferences.ed2k-search-timeout')">
+        <NInputNumber v-model:value="form.ed2kSearchTimeout" :min="10" :max="600" style="width: 160px" />
+        <NText depth="3" style="font-size: 12px; margin-left: 8px">{{ t('preferences.unit-seconds') }}</NText>
       </NFormItem>
       <NFormItem :show-label="false">
         <NDataTable
@@ -500,6 +525,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 34px;
+}
+.ed2k-search-status {
+  display: inline-flex;
+  min-width: 240px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 .ed2k-search-icon-stack {
   position: relative;
@@ -541,6 +574,12 @@ onMounted(() => {
     opacity 0.22s cubic-bezier(0.2, 0, 0, 1),
     transform 0.22s cubic-bezier(0.2, 0, 0, 1);
 }
+.ed2k-search-status-enter-active,
+.ed2k-search-status-leave-active {
+  transition:
+    opacity 0.22s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
 .ed2k-search-label-enter-from {
   opacity: 0;
   transform: translateY(6px);
@@ -548,6 +587,11 @@ onMounted(() => {
 .ed2k-search-label-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+.ed2k-search-status-enter-from,
+.ed2k-search-status-leave-to {
+  opacity: 0;
+  transform: translateX(-6px);
 }
 @keyframes ed2k-search-spin {
   from {

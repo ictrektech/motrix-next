@@ -341,6 +341,7 @@ export interface AppConfig {
   ed2kNodeList: string
   ed2kUploadSlots: number
   ed2kShareFiles: string[]
+  ed2kSearchTimeout: number
   btTracker: string
   forceSave: boolean
   btSaveMetadata: boolean
