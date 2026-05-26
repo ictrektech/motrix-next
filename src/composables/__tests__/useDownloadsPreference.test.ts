@@ -183,6 +183,16 @@ describe('buildDownloadsForm', () => {
     expect(form.clearCompletedOnExit).toBe(false)
   })
 
+  it('defaults completedRecordRetentionDays to forever', () => {
+    const form = buildDownloadsForm(emptyConfig)
+    expect(form.completedRecordRetentionDays).toBe(0)
+  })
+
+  it('reads completedRecordRetentionDays from config when set', () => {
+    const form = buildDownloadsForm({ completedRecordRetentionDays: 180 } as unknown as AppConfig)
+    expect(form.completedRecordRetentionDays).toBe(180)
+  })
+
   // ── Completeness ────────────────────────────────────────────────
 
   it('returns all 26 form fields', () => {
@@ -215,6 +225,7 @@ describe('buildDownloadsForm', () => {
       'deleteTorrentAfterComplete',
       'autoDeleteStaleRecords',
       'clearCompletedOnExit',
+      'completedRecordRetentionDays',
     ]
     for (const field of expectedFields) {
       expect(form).toHaveProperty(field)
@@ -254,6 +265,7 @@ describe('buildDownloadsSystemConfig', () => {
     deleteTorrentAfterComplete: false,
     autoDeleteStaleRecords: false,
     clearCompletedOnExit: false,
+    completedRecordRetentionDays: 0,
   }
 
   it('maps dir to aria2 config', () => {
@@ -338,6 +350,7 @@ describe('buildDownloadsSystemConfig', () => {
     expect(config).not.toHaveProperty('deleteTorrentAfterComplete')
     expect(config).not.toHaveProperty('autoDeleteStaleRecords')
     expect(config).not.toHaveProperty('clearCompletedOnExit')
+    expect(config).not.toHaveProperty('completedRecordRetentionDays')
   })
 
   it('does NOT include file category keys in aria2 config', () => {
@@ -378,6 +391,7 @@ describe('transformDownloadsForStore', () => {
     deleteTorrentAfterComplete: false,
     autoDeleteStaleRecords: false,
     clearCompletedOnExit: false,
+    completedRecordRetentionDays: 0,
   }
 
   it('persists split independently from maxConnectionPerServer', () => {
@@ -425,6 +439,11 @@ describe('transformDownloadsForStore', () => {
   it('preserves dir through transform', () => {
     const result = transformDownloadsForStore({ ...baseForm, dir: '/custom/path' })
     expect(result.dir).toBe('/custom/path')
+  })
+
+  it('preserves completedRecordRetentionDays through transform', () => {
+    const result = transformDownloadsForStore({ ...baseForm, completedRecordRetentionDays: 365 })
+    expect(result.completedRecordRetentionDays).toBe(365)
   })
 })
 

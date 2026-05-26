@@ -44,6 +44,7 @@ export interface DownloadsForm {
   deleteTorrentAfterComplete: boolean
   autoDeleteStaleRecords: boolean
   clearCompletedOnExit: boolean
+  completedRecordRetentionDays: number
 }
 
 // ── Internals ───────────────────────────────────────────────────────
@@ -109,6 +110,7 @@ export function buildDownloadsForm(config: AppConfig, defaultDir: string = ''): 
     deleteTorrentAfterComplete: config.deleteTorrentAfterComplete ?? false,
     autoDeleteStaleRecords: config.autoDeleteStaleRecords ?? false,
     clearCompletedOnExit: config.clearCompletedOnExit ?? false,
+    completedRecordRetentionDays: config.completedRecordRetentionDays ?? D.completedRecordRetentionDays,
   }
 }
 

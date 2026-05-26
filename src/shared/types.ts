@@ -366,6 +366,8 @@ export interface AppConfig {
   deleteTorrentAfterComplete: boolean
   autoDeleteStaleRecords: boolean
   clearCompletedOnExit: boolean
+  /** Completed history retention in days. 0 means keep forever. */
+  completedRecordRetentionDays: number
   /** When true, the system shuts down after all downloads complete. */
   shutdownWhenComplete: boolean
   /** When true, prevents system idle sleep while downloads are active.

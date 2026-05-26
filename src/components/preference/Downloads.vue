@@ -14,6 +14,7 @@ import { changeGlobalOption, isEngineReady } from '@/api/aria2'
 import {
   ENGINE_RPC_PORT,
   ENGINE_MAX_CONNECTION_PER_SERVER,
+  COMPLETED_RECORD_RETENTION_OPTIONS,
   SAFE_LIMIT_SPLIT,
   SAFE_LIMIT_CONNECTION_PER_SERVER,
   SCHEDULE_DAY,
@@ -177,6 +178,26 @@ const notificationTypeOptions = computed(() => [
   { label: t('preferences.notify-on-start'), value: 'start' },
   { label: t('preferences.notify-on-complete'), value: 'complete' },
 ])
+const completedRecordRetentionOptions = computed(() => [
+  { label: t('preferences.completed-record-retention-forever'), value: 0 },
+  { label: t('preferences.completed-record-retention-1-day'), value: 1 },
+  { label: t('preferences.completed-record-retention-1-week'), value: 7 },
+  { label: t('preferences.completed-record-retention-6-months'), value: 180 },
+  { label: t('preferences.completed-record-retention-1-year'), value: 365 },
+  { label: t('preferences.completed-record-retention-custom'), value: -1 },
+])
+const completedRecordRetentionSelectValue = computed<number>({
+  get: () => {
+    const value = Number(form.value.completedRecordRetentionDays)
+    return COMPLETED_RECORD_RETENTION_OPTIONS.includes(value as (typeof COMPLETED_RECORD_RETENTION_OPTIONS)[number])
+      ? value
+      : -1
+  },
+  set: (value) => {
+    if (value !== -1) form.value.completedRecordRetentionDays = value
+    else if (form.value.completedRecordRetentionDays <= 0) form.value.completedRecordRetentionDays = 30
+  },
+})
 const selectedNotificationTypes = computed<string[]>({
   get: () => [...(form.value.notifyOnStart ? ['start'] : []), ...(form.value.notifyOnComplete ? ['complete'] : [])],
   set: (types) => {
@@ -558,6 +579,21 @@ onMounted(async () => {
       <NFormItem :label="t('preferences.clear-completed-on-exit')">
         <NSwitch v-model:value="form.clearCompletedOnExit" />
       </NFormItem>
+      <NFormItem :label="t('preferences.completed-record-retention')">
+        <NSelect
+          v-model:value="completedRecordRetentionSelectValue"
+          :options="completedRecordRetentionOptions"
+          style="width: 180px"
+        />
+      </NFormItem>
+      <NCollapseTransition :show="completedRecordRetentionSelectValue === -1">
+        <NFormItem :label="t('preferences.completed-record-retention-custom-days')">
+          <NInputNumber v-model:value="form.completedRecordRetentionDays" :min="1" :max="3650" style="width: 120px" />
+          <NText depth="3" style="font-size: 12px; margin-left: 8px">
+            {{ t('preferences.completed-record-retention-days-unit') }}
+          </NText>
+        </NFormItem>
+      </NCollapseTransition>
     </NForm>
     <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />
   </div>

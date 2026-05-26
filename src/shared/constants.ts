@@ -99,6 +99,8 @@ export const ONE_SECOND = 1000
 export const ONE_MINUTE = ONE_SECOND * 60
 export const ONE_HOUR = ONE_MINUTE * 60
 export const ONE_DAY = ONE_HOUR * 24
+export const COMPLETED_RECORD_RETENTION_FOREVER = 0
+export const COMPLETED_RECORD_RETENTION_OPTIONS = [0, 1, 7, 180, 365] as const
 
 // 12 Hours
 export const AUTO_SYNC_TRACKER_INTERVAL = ONE_HOUR * 12
@@ -336,6 +338,7 @@ export const DEFAULT_APP_CONFIG = {
   deleteTorrentAfterComplete: false,
   autoDeleteStaleRecords: false,
   clearCompletedOnExit: false,
+  completedRecordRetentionDays: COMPLETED_RECORD_RETENTION_FOREVER,
 
   // ── Power Management ────────────────────────────────────────────
   shutdownWhenComplete: false,

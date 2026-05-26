@@ -15,6 +15,7 @@ const userKeys = [
   'clipboard',
   'clear-completed-on-exit',
   'color-scheme',
+  'completed-record-retention-days',
   'delete-torrent-after-complete',
   'delete-files-when-skip-confirm',
   'ed2k-listen-port',

@@ -425,7 +425,7 @@ window.addEventListener('unhandledrejection', (e) => {
     autoCheckForUpdate()
     autoSyncTrackerOnStartup()
 
-    // Initialize download history database, then schedule stale record cleanup
+    // Initialize download history database, then schedule lightweight cleanup.
     historyStore
       .init({
         onCorrupt: () => logger.warn('HistoryDB', 'Database corrupted, rebuilding…'),
@@ -434,34 +434,27 @@ window.addEventListener('unhandledrejection', (e) => {
         onRebuildFailed: (e) => logger.error('HistoryDB', `Rebuild failed: ${e}`),
       })
       .then(() => {
-        // Auto-delete stale records if enabled — delayed to avoid startup contention
-        if (preferenceStore.config?.autoDeleteStaleRecords) {
-          const runCleanup = async () => {
-            try {
-              const { runStaleRecordCleanup } = await import('./composables/useStaleCleanup')
-              const { extractHistoryFilePaths } = await import('./composables/useTaskLifecycle')
-              const records = await historyStore.getRecords('complete')
-              const result = await runStaleRecordCleanup(
-                records.map((r) => ({
-                  gid: r.gid,
-                  name: r.name,
-                  dir: r.dir ?? '',
-                  filePaths: extractHistoryFilePaths(r),
-                })),
-                historyStore.removeStaleRecords,
-              )
-              if (result.removed > 0) {
-                logger.info('StaleCleanup', `Removed ${result.removed}/${result.scanned} stale records`)
-              }
-            } catch (e) {
-              logger.debug('StaleCleanup', e)
-            }
+        const runCleanup = async () => {
+          try {
+            const { runHistoryMaintenance } = await import('./composables/useStaleCleanup')
+            const { extractHistoryFilePaths } = await import('./composables/useTaskLifecycle')
+            await runHistoryMaintenance({
+              autoDeleteStaleRecords: !!preferenceStore.config?.autoDeleteStaleRecords,
+              completedRecordRetentionDays: Number(preferenceStore.config?.completedRecordRetentionDays ?? 0),
+              getRecords: historyStore.getRecords,
+              removeStaleRecords: historyStore.removeStaleRecords,
+              removeHistoryRecords: historyStore.removeStaleRecords,
+              removeTaskRecord: aria2Api.removeTaskRecord,
+              extractFilePaths: extractHistoryFilePaths,
+            })
+          } catch (e) {
+            logger.debug('HistoryMaintenance', e)
           }
-          // First scan 30s after startup — not urgent
-          setTimeout(runCleanup, 30_000)
-          // Re-scan every 30 minutes for long-running sessions
-          setInterval(runCleanup, 1_800_000)
         }
+        // First scan 30s after startup — not urgent.
+        setTimeout(runCleanup, 30_000)
+        // Re-scan every 30 minutes for long-running sessions.
+        setInterval(runCleanup, 1_800_000)
       })
       .catch((e) => logger.warn('HistoryDB', 'init failed: ' + e))
 
