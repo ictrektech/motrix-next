@@ -175,6 +175,24 @@ describe('useAppStore', () => {
       expect(store.addTaskVisible).toBe(true)
     })
 
+    it('showAddTaskDialog clears stale external browser context before manual entry', () => {
+      const store = useAppStore()
+      store.pendingReferer = 'https://old.example/page'
+      store.pendingCookie = 'sid=old'
+      store.pendingFilename = 'old.zip'
+      store.pendingUserAgent = 'OldUA/1.0'
+      store.pendingRequestHeaders = [{ name: 'Accept', value: 'application/octet-stream' }]
+
+      store.showAddTaskDialog()
+
+      expect(store.addTaskVisible).toBe(true)
+      expect(store.pendingReferer).toBe('')
+      expect(store.pendingCookie).toBe('')
+      expect(store.pendingFilename).toBe('')
+      expect(store.pendingUserAgent).toBe('')
+      expect(store.pendingRequestHeaders).toEqual([])
+    })
+
     it('hideAddTaskDialog sets addTaskVisible to false and clears pendingBatch', () => {
       const store = useAppStore()
       store.addTaskVisible = true
@@ -802,7 +820,7 @@ describe('useAppStore', () => {
       expect(store.addTaskVisible).toBe(false)
     })
 
-    it('still sets pendingReferer even when auto-submitting', async () => {
+    it('passes referer through auto-submit without retaining pending metadata', async () => {
       const store = useAppStore()
       const { usePreferenceStore } = await import('@/stores/preference')
       const prefStore = usePreferenceStore()
@@ -810,11 +828,14 @@ describe('useAppStore', () => {
 
       store.handleDeepLinkUrls([buildDeepLink('https://example.com/file.zip', 'https://example.com')])
 
-      // referer should still be extracted (used in auto-submit form)
-      expect(store.pendingReferer).toBe('https://example.com')
+      const submittedForm = submitManualUrisMock.mock.calls[0][0]
+      const submittedOptions = submitManualUrisMock.mock.calls[0][1]
+      expect(submittedForm.referer).toBe('https://example.com')
+      expect(submittedOptions.referer).toBe('https://example.com')
+      expect(store.pendingReferer).toBe('')
     })
 
-    it('forwards cookie to aria2 header when auto-submitting', async () => {
+    it('passes cookie through auto-submit without retaining pending metadata', async () => {
       const store = useAppStore()
       const { usePreferenceStore } = await import('@/stores/preference')
       const prefStore = usePreferenceStore()
@@ -822,8 +843,11 @@ describe('useAppStore', () => {
 
       store.handleDeepLinkUrls([buildDeepLink('https://cdn.quark.cn/file.zip', 'https://pan.quark.cn', 'auth=secret')])
 
-      // Cookie should be extracted even during auto-submit
-      expect(store.pendingCookie).toBe('auth=secret')
+      const submittedForm = submitManualUrisMock.mock.calls[0][0]
+      const submittedOptions = submitManualUrisMock.mock.calls[0][1]
+      expect(submittedForm.cookie).toBe('auth=secret')
+      expect(submittedOptions.header).toContain('Cookie: auth=secret')
+      expect(store.pendingCookie).toBe('')
     })
 
     it('auto-submits structured extension input with captured user agent and request headers', async () => {

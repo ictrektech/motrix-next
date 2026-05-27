@@ -120,6 +120,22 @@ export const useAppStore = defineStore('app', () => {
   let externalInputErrorHandler: ((error: unknown) => void) | null = null
   let externalInputStartHandler: ((taskNames: string[]) => void) | null = null
 
+  function clearPendingExternalMetadata() {
+    pendingReferer.value = ''
+    pendingCookie.value = ''
+    pendingFilename.value = ''
+    pendingUserAgent.value = ''
+    pendingRequestHeaders.value = []
+  }
+
+  function setPendingExternalMetadata(context: ExternalDownloadContext, filenameHint: string) {
+    pendingReferer.value = context.referer ?? ''
+    pendingCookie.value = context.cookie ?? ''
+    pendingUserAgent.value = context.userAgent ?? ''
+    pendingRequestHeaders.value = context.requestHeaders ?? []
+    pendingFilename.value = filenameHint
+  }
+
   function setExternalInputErrorHandler(handler: ((error: unknown) => void) | null) {
     externalInputErrorHandler = handler
   }
@@ -175,17 +191,14 @@ export const useAppStore = defineStore('app', () => {
 
   /** Opens an empty add-task dialog for manual URI entry. */
   function showAddTaskDialog() {
+    clearPendingExternalMetadata()
     addTaskVisible.value = true
   }
 
   function hideAddTaskDialog() {
     addTaskVisible.value = false
     pendingBatch.value = []
-    pendingReferer.value = ''
-    pendingCookie.value = ''
-    pendingFilename.value = ''
-    pendingUserAgent.value = ''
-    pendingRequestHeaders.value = []
+    clearPendingExternalMetadata()
   }
 
   function updateAddTaskOptions(options: Aria2EngineOptions = {}) {
@@ -404,12 +417,6 @@ export const useAppStore = defineStore('app', () => {
     const resolvedHint = resolveExternalFilenameHint(downloadUrl, input.filename ?? '')
     const context = buildExternalContext(input)
 
-    pendingReferer.value = context.referer ?? ''
-    pendingCookie.value = context.cookie ?? ''
-    pendingUserAgent.value = context.userAgent ?? ''
-    pendingRequestHeaders.value = context.requestHeaders ?? []
-    pendingFilename.value = resolvedHint
-
     const preferenceStore = usePreferenceStore()
     const autoSubmit = preferenceStore.config.autoSubmitFromExtension
     const autoSelectAll = preferenceStore.config.autoSelectAllFilesFromExtension === true
@@ -442,6 +449,7 @@ export const useAppStore = defineStore('app', () => {
       return { autoSubmitted: 1, ignored: 0 }
     }
 
+    setPendingExternalMetadata(context, resolvedHint)
     const item = createBatchItem(kind, downloadUrl)
     item.browserContext = context
     if (resolvedHint) item.displayName = resolvedHint
