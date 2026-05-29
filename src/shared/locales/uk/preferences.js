@@ -373,8 +373,6 @@ export default {
   'transfer-params': 'Параметри передачі',
   'connect-timeout': "Тайм-аут з'єднання",
   timeout: 'Тайм-аут передачі',
-  'async-dns': 'Асинхронний DNS',
-  'async-dns-hint': 'Може підвищити продуктивність, але може бути нестабільним або заважати завантаженням',
   'file-allocation': 'Попереднє виділення файлу',
   'startup-behavior': 'Запуск',
   'tray-and-dock': 'Трей та Dock',

@@ -371,8 +371,6 @@ export default {
   'transfer-params': 'Thông số truyền tải',
   'connect-timeout': 'Hết hạn kết nối',
   timeout: 'Hết hạn truyền tải',
-  'async-dns': 'DNS bất đồng bộ',
-  'async-dns-hint': 'Có thể tăng hiệu năng, nhưng có thể không ổn định hoặc chặn tải xuống',
   'file-allocation': 'Phân bổ trước tệp',
   'startup-behavior': 'Khởi động',
   'tray-and-dock': 'Khay hệ thống và Dock',

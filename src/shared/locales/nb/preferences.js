@@ -371,8 +371,6 @@ export default {
   'transfer-params': 'Overføringsparametere',
   'connect-timeout': 'Tilkoblingsavbrudd',
   timeout: 'Overføringsavbrudd',
-  'async-dns': 'Asynkron DNS',
-  'async-dns-hint': 'Kan forbedre ytelsen, men kan være ustabilt eller hindre nedlastinger',
   'file-allocation': 'Forhåndstildeling av fil',
   'startup-behavior': 'Oppstart',
   'tray-and-dock': 'Systemstatusfeltet og Dock',

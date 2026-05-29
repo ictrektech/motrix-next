@@ -372,8 +372,6 @@ export default {
   'transfer-params': 'پارامترهای انتقال',
   'connect-timeout': 'مهلت اتصال',
   timeout: 'مهلت انتقال',
-  'async-dns': 'DNS ناهمگام',
-  'async-dns-hint': 'ممکن است کارایی را بهبود دهد، اما می‌تواند ناپایدار باشد یا مانع دانلود شود',
   'file-allocation': 'پیش‌تخصیص فایل',
   'startup-behavior': 'راه‌اندازی',
   'tray-and-dock': 'سینی و Dock',

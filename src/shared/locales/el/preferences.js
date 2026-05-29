@@ -381,8 +381,6 @@ export default {
   'transfer-params': 'Παράμετροι μεταφοράς',
   'connect-timeout': 'Χρονικό όριο σύνδεσης',
   timeout: 'Χρονικό όριο μεταφοράς',
-  'async-dns': 'Ασύγχρονο DNS',
-  'async-dns-hint': 'Μπορεί να βελτιώσει την απόδοση, αλλά ίσως είναι ασταθές ή εμποδίσει λήψεις',
   'file-allocation': 'Προ-εκχώρηση αρχείου',
   'startup-behavior': 'Εκκίνηση',
   'tray-and-dock': 'Περιοχή ειδοποιήσεων & Dock',

@@ -26,7 +26,6 @@ pub(crate) const SUPPORTED_ENGINE_KEYS: &[&str] = &[
     "content-disposition-default-utf8",
     "continue",
     "dht-listen-port",
-    "dns-resolver",
     "dir",
     "dry-run",
     "ed2k-listen-port",
@@ -739,20 +738,5 @@ mod tests {
             args.iter().any(|a| a == "--all-proxy=127.0.0.1:8080"),
             "Bare HOST:PORT proxy should pass through"
         );
-    }
-
-    #[test]
-    fn build_args_passes_dns_resolver() {
-        let config = json!({ "dns-resolver": "async" });
-        let args = build_start_args(
-            &config,
-            None,
-            "/tmp/s.session",
-            false,
-            "/tmp/aria2-next.log",
-            "debug",
-            true,
-        );
-        assert!(args.iter().any(|a| a == "--dns-resolver=async"));
     }
 }

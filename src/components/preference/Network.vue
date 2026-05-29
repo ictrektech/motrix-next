@@ -414,15 +414,6 @@ onMounted(() => {
       <NFormItem :label="t('preferences.file-allocation')">
         <NSelect v-model:value="form.fileAllocation" :options="fileAllocationOptions" style="width: 140px" />
       </NFormItem>
-      <NFormItem>
-        <template #label>
-          <PreferenceHintLabel :label="t('preferences.async-dns')" :hint="t('preferences.async-dns-hint')" />
-        </template>
-        <NSwitch
-          :value="form.dnsResolver === 'async'"
-          @update:value="(enabled: boolean) => (form.dnsResolver = enabled ? 'async' : 'system')"
-        />
-      </NFormItem>
     </NForm>
     <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />
   </div>

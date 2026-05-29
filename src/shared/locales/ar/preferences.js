@@ -369,8 +369,6 @@ export default {
   'transfer-params': 'معلمات النقل',
   'connect-timeout': 'مهلة الاتصال',
   timeout: 'مهلة النقل',
-  'async-dns': 'DNS غير متزامن',
-  'async-dns-hint': 'قد يحسن الأداء، لكنه قد يكون غير مستقر أو يمنع التنزيل',
   'file-allocation': 'تخصيص الملف المسبق',
   'startup-behavior': 'التشغيل',
   'tray-and-dock': 'شريط المهام والـ Dock',

@@ -375,8 +375,6 @@ export default {
   'transfer-params': 'Overdrachtsparameters',
   'connect-timeout': 'Verbindingstime-out',
   timeout: 'Overdrachtstime-out',
-  'async-dns': 'Asynchrone DNS',
-  'async-dns-hint': 'Kan de prestaties verbeteren, maar kan instabiel zijn of downloads blokkeren',
   'file-allocation': 'Bestandsvoorallocatie',
   'startup-behavior': 'Opstarten',
   'tray-and-dock': 'Systeemvak en Dock',

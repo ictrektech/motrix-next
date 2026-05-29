@@ -374,8 +374,6 @@ export default {
   'transfer-params': 'Átviteli paraméterek',
   'connect-timeout': 'Kapcsolódási időtúllépés',
   timeout: 'Átviteli időtúllépés',
-  'async-dns': 'Aszinkron DNS',
-  'async-dns-hint': 'Javíthatja a teljesítményt, de instabil lehet vagy megakadályozhatja a letöltéseket',
   'file-allocation': 'Fájl előfoglalás',
   'startup-behavior': 'Indítás',
   'tray-and-dock': 'Tálca és Dock',

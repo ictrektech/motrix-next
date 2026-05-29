@@ -8,7 +8,7 @@
  * Proxy validation logic is co-located here since it is only used in
  * this tab's save flow.
  */
-import type { AppConfig, DnsResolver, PortConflictRecoveryConfig } from '@shared/types'
+import type { AppConfig, PortConflictRecoveryConfig } from '@shared/types'
 import {
   PORT_RECOVERY_RANGE_END,
   PORT_RECOVERY_RANGE_START,
@@ -39,7 +39,6 @@ export interface NetworkForm {
   dhtListenPort: number
   connectTimeout: number
   timeout: number
-  dnsResolver: DnsResolver
   fileAllocation: string
   userAgent: string
 }
@@ -83,7 +82,6 @@ export function buildNetworkForm(config: AppConfig): NetworkForm {
     dhtListenPort: Number(config.dhtListenPort ?? D.dhtListenPort),
     connectTimeout: config.connectTimeout ?? D.connectTimeout,
     timeout: config.timeout ?? D.timeout,
-    dnsResolver: config.dnsResolver === 'async' ? 'async' : D.dnsResolver,
     fileAllocation: config.fileAllocation ?? D.fileAllocation,
     userAgent: config.userAgent ?? D.userAgent,
   }
@@ -100,7 +98,6 @@ export function buildNetworkSystemConfig(f: NetworkForm): Record<string, string>
     'user-agent': f.userAgent || '',
     'connect-timeout': String(f.connectTimeout),
     timeout: String(f.timeout),
-    'dns-resolver': f.dnsResolver,
     'file-allocation': f.fileAllocation || 'prealloc',
     ...buildDownloadProxyOptions(f.proxy),
   }

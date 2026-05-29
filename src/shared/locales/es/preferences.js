@@ -380,8 +380,6 @@ export default {
   'transfer-params': 'Parámetros de transferencia',
   'connect-timeout': 'Tiempo de espera de conexión',
   timeout: 'Tiempo de espera de transferencia',
-  'async-dns': 'DNS asíncrono',
-  'async-dns-hint': 'Puede mejorar el rendimiento, pero puede ser inestable o impedir descargas',
   'file-allocation': 'Preasignación de archivo',
   'startup-behavior': 'Inicio',
   'tray-and-dock': 'Bandeja y Dock',

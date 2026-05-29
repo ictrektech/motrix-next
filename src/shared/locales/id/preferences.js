@@ -374,8 +374,6 @@ export default {
   'transfer-params': 'Parameter Transfer',
   'connect-timeout': 'Batas waktu koneksi',
   timeout: 'Batas waktu transfer',
-  'async-dns': 'DNS asinkron',
-  'async-dns-hint': 'Dapat meningkatkan performa, tetapi bisa tidak stabil atau menggagalkan unduhan',
   'file-allocation': 'Pra-alokasi file',
   'startup-behavior': 'Mulai',
   'tray-and-dock': 'Baki & Dock',

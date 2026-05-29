@@ -375,8 +375,6 @@ export default {
   'transfer-params': 'Parametrii de transfer',
   'connect-timeout': 'Timeout conexiune',
   timeout: 'Timeout transfer',
-  'async-dns': 'DNS asincron',
-  'async-dns-hint': 'Poate îmbunătăți performanța, dar poate fi instabil sau poate bloca descărcările',
   'file-allocation': 'Pre-alocare fișier',
   'startup-behavior': 'Pornire',
   'tray-and-dock': 'Tavă și Dock',

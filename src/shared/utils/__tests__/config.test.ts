@@ -80,6 +80,13 @@ describe('separateConfig', () => {
     expect(result.system).toHaveProperty('dir')
     expect(result.others).toHaveProperty('unknownKey')
   })
+
+  it('treats removed dns-resolver as unsupported config', () => {
+    const result = separateConfig({ 'dns-resolver': 'async' })
+    expect(result.user).not.toHaveProperty('dns-resolver')
+    expect(result.system).not.toHaveProperty('dns-resolver')
+    expect(result.others).toHaveProperty('dns-resolver')
+  })
 })
 
 describe('diffConfig', () => {
@@ -148,9 +155,6 @@ describe('checkIsNeedRestart', () => {
     expect(checkIsNeedRestart({ ed2kNodeList: '/tmp/nodes.dat' })).toBe(true)
     expect(checkIsNeedRestart({ ed2kUploadSlots: 4 })).toBe(true)
     expect(checkIsNeedRestart({ ed2kShareFiles: ['/tmp/shared.bin'] })).toBe(true)
-  })
-  it('returns true for DNS resolver changes', () => {
-    expect(checkIsNeedRestart({ dnsResolver: 'async' })).toBe(true)
   })
   it('returns false for non-restart keys', () => {
     expect(checkIsNeedRestart({ theme: 'dark' })).toBe(false)
@@ -301,10 +305,6 @@ describe('filterHotReloadableKeys', () => {
       'rpc-save-upload-metadata': 'true',
     }
     expect(filterHotReloadableKeys(config)).toEqual({})
-  })
-
-  it('strips dns-resolver because aria2 only reads it at startup', () => {
-    expect(filterHotReloadableKeys({ 'dns-resolver': 'async' })).toEqual({})
   })
 
   it('strips unsupported engine keys by allowlist', () => {

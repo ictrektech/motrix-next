@@ -378,8 +378,6 @@ export default {
   'transfer-params': 'Paràmetres de transferència',
   'connect-timeout': "Temps d'espera de connexió",
   timeout: "Temps d'espera de transferència",
-  'async-dns': 'DNS asíncron',
-  'async-dns-hint': 'Pot millorar el rendiment, però pot ser inestable o impedir les baixades',
   'file-allocation': 'Preasignació de fitxer',
   'startup-behavior': 'Inici',
   'tray-and-dock': 'Safata i Dock',

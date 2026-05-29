@@ -374,8 +374,6 @@ export default {
   'transfer-params': '転送パラメータ',
   'connect-timeout': '接続タイムアウト',
   timeout: '転送タイムアウト',
-  'async-dns': '非同期 DNS',
-  'async-dns-hint': '性能が向上する場合がありますが、不安定になったりダウンロードできないことがあります',
   'file-allocation': 'ファイル事前割り当て',
   'startup-behavior': '起動',
   'tray-and-dock': 'トレイと Dock',

@@ -373,8 +373,6 @@ export default {
   'transfer-params': 'Параметри на трансфера',
   'connect-timeout': 'Времеви лимит за свързване',
   timeout: 'Времеви лимит за трансфер',
-  'async-dns': 'Асинхронен DNS',
-  'async-dns-hint': 'Може да подобри производителността, но може да е нестабилно или да спре изтеглянията',
   'file-allocation': 'Предварително разпределяне на файл',
   'startup-behavior': 'Стартиране',
   'tray-and-dock': 'Трей и Dock',

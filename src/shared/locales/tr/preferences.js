@@ -374,8 +374,6 @@ export default {
   'transfer-params': 'Aktarım Parametreleri',
   'connect-timeout': 'Bağlantı zaman aşımı',
   timeout: 'Aktarım zaman aşımı',
-  'async-dns': 'Eşzamansız DNS',
-  'async-dns-hint': 'Performansı artırabilir, ancak kararsız olabilir veya indirmeleri engelleyebilir',
   'file-allocation': 'Dosya ön tahsisi',
   'startup-behavior': 'Başlangıç',
   'tray-and-dock': 'Tepsi ve Dock',

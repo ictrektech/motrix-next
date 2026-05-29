@@ -382,8 +382,6 @@ export default {
   'transfer-params': 'Paramètres de transfert',
   'connect-timeout': 'Délai de connexion',
   timeout: 'Délai de transfert',
-  'async-dns': 'DNS asynchrone',
-  'async-dns-hint': 'Peut améliorer les performances, mais peut être instable ou bloquer les téléchargements',
   'file-allocation': 'Pré-allocation de fichier',
   'startup-behavior': 'Démarrage',
   'tray-and-dock': 'Barre des tâches et Dock',

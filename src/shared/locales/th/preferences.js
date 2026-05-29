@@ -367,8 +367,6 @@ export default {
   'transfer-params': 'พารามิเตอร์การถ่ายโอน',
   'connect-timeout': 'หมดเวลาเชื่อมต่อ',
   timeout: 'หมดเวลาถ่ายโอน',
-  'async-dns': 'DNS แบบอะซิงโครนัส',
-  'async-dns-hint': 'อาจเพิ่มประสิทธิภาพ แต่ไม่เสถียรหรืออาจทำให้ดาวน์โหลดไม่ได้',
   'file-allocation': 'จัดสรรไฟล์ล่วงหน้า',
   'startup-behavior': 'การเริ่มต้น',
   'tray-and-dock': 'ถาดและ Dock',

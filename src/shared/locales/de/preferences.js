@@ -377,8 +377,6 @@ export default {
   'transfer-params': 'Übertragungsparameter',
   'connect-timeout': 'Verbindungs-Zeitlimit',
   timeout: 'Übertragungs-Zeitlimit',
-  'async-dns': 'Asynchrones DNS',
-  'async-dns-hint': 'Kann die Leistung verbessern, kann aber instabil sein oder Downloads verhindern',
   'file-allocation': 'Datei-Vorabzuweisung',
   'startup-behavior': 'Autostart',
   'tray-and-dock': 'Taskleiste & Dock',
