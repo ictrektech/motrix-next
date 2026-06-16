@@ -1,0 +1,38 @@
+FROM --platform=linux/amd64 node:22-bookworm-slim AS builder
+
+ENV VITE_WEB_APP=true
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack enable \
+    && corepack prepare pnpm@11.5.2 --activate \
+    && pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm build:web
+
+FROM --platform=linux/amd64 node:22-bookworm-slim
+
+ENV NODE_ENV=production \
+    PORT=47000 \
+    DOWNLOAD_DIR=/downloads
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends aria2 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /downloads
+
+COPY --from=builder /app/dist ./dist
+COPY docker/server.js ./docker/server.js
+
+EXPOSE 47000
+VOLUME ["/downloads"]
+
+CMD ["node", "docker/server.js"]

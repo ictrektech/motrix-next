@@ -64,3 +64,10 @@ src-tauri/gen/
 *.seed
 *.pid.lock
 .omx/
+
+# Local web/docker runtime data
+downloads/
+aria2.session
+aria2.session.*
+.docker-build/
+docker-data/

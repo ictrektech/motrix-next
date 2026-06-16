@@ -35,6 +35,7 @@ import './styles/naive-overrides.css'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getLocale } from 'tauri-plugin-locale-api'
 import { resolveSystemLocale } from '@shared/utils/locale'
+import { isWebApp, webDownloadDir } from './web/runtime'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -69,6 +70,39 @@ if (import.meta.env.PROD) {
   const taskStore = useTaskStore()
   const appStore = useAppStore()
   const historyStore = useHistoryStore()
+
+  async function bootstrapWebApp(): Promise<void> {
+    await preferenceStore.loadPreference()
+
+    const rawLocale = preferenceStore.locale || 'auto'
+    const resolvedLocale =
+      !rawLocale || rawLocale === 'auto'
+        ? resolveSystemLocale(navigator.language || 'en-US', i18n.global.availableLocales)
+        : rawLocale
+    setI18nLocale(i18n, resolvedLocale)
+    preferenceStore.flushMigrationSignals()
+
+    if (!preferenceStore.config.dir || preferenceStore.config.dir === '/') {
+      preferenceStore.updatePreference({ dir: webDownloadDir() })
+      await preferenceStore.savePreference()
+    }
+
+    taskStore.setApi(aria2Api)
+    const { setEngineReady } = await import('@/api/aria2')
+    setEngineReady(true)
+    appStore.engineReady = true
+    appStore.setEngineRestarting(false)
+
+    app.mount('#app')
+
+    await appStore.fetchEngineInfo(aria2Api).catch((e) => logger.debug('Web.fetchEngineInfo', e))
+    await appStore.fetchEngineOptions(aria2Api).catch((e) => logger.debug('Web.fetchEngineOptions', e))
+    await appStore.fetchGlobalStat(aria2Api).catch((e) => logger.debug('Web.fetchGlobalStat', e))
+
+    setInterval(() => {
+      appStore.fetchGlobalStat(aria2Api).catch((e) => logger.debug('Web.fetchGlobalStat', e))
+    }, 1000)
+  }
 
   /** Rust-side health check: probes Aria2 Next HTTP RPC with retries.
    *  Also updates Aria2Client credentials so invoke() commands work. */
@@ -510,8 +544,16 @@ if (import.meta.env.PROD) {
     })
   }
 
-  void bootstrapMainWindow().catch((e) => {
-    logger.error('main.bootstrap', e)
-    appStore.setEngineRestarting(false)
-  })
+  if (isWebApp) {
+    void bootstrapWebApp().catch((e) => {
+      logger.error('main.webBootstrap', e)
+      appStore.setEngineRestarting(false)
+      app.mount('#app')
+    })
+  } else {
+    void bootstrapMainWindow().catch((e) => {
+      logger.error('main.bootstrap', e)
+      appStore.setEngineRestarting(false)
+    })
+  }
 } // end: main window initialization

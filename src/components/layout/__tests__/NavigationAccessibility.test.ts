@@ -74,11 +74,12 @@ describe('keyboard-accessible navigation', () => {
     expect(showAddTaskDialogMock).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the sidebar logo visual-only instead of linking to GitHub', () => {
+  it('links the sidebar logo to Vivibit', () => {
     const wrapper = mount(AsideBar)
 
-    expect(wrapper.find('.logo-mini a').exists()).toBe(false)
-    expect(wrapper.find('.logo-mini').text()).toContain('NEXT')
+    const logo = wrapper.find('.logo-mini a')
+    expect(logo.exists()).toBe(true)
+    expect(logo.attributes('href')).toBe('https://www.vivibit.com/')
     expect(wrapper.html()).not.toContain('github.com/AnInsomniacy/motrix-next')
   })
 

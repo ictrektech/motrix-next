@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:web": "VITE_WEB_APP=true vite --host 0.0.0.0 --port 47000",
     "build": "vue-tsc --noEmit && vite build",
+    "build:web": "VITE_WEB_APP=true vue-tsc --noEmit && VITE_WEB_APP=true vite build",
+    "start:web": "pnpm dev:web",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
