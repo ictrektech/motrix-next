@@ -125,7 +125,7 @@ function buildForm() {
   return buildDownloadsForm(preferenceStore.config, defaultDownloadDir.value)
 }
 
-const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceForm({
+const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } = usePreferenceForm({
   buildForm,
   buildSystemConfig: buildDownloadsSystemConfig,
   transformForStore: transformDownloadsForStore,
@@ -243,8 +243,14 @@ const categorySummary = computed(() => {
   return t('preferences.file-category-summary', { count: categories.length, url: urlRuleCount })
 })
 const categoryBaseDir = computed(() => form.value.dir || defaultDownloadDir.value)
-function handleCategoryManagerSave(categories: typeof form.value.fileCategories) {
+async function handleCategoryManagerSave(categories: typeof form.value.fileCategories) {
   form.value.fileCategories = categories
+  const saved = await preferenceStore.updateAndSave({ fileCategories: categories })
+  if (!saved) {
+    message.error(t('preferences.save-fail-message'))
+    return
+  }
+  patchSnapshot({ fileCategories: categories } as Partial<typeof form.value>)
 }
 async function handleSelectDir() {
   const selected = await openDialog({ directory: true, multiple: false })

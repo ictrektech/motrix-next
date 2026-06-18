@@ -21,9 +21,15 @@ import picomatch from 'picomatch'
 
 const MAX_URL_CANDIDATE_LENGTH = 4096
 const MAX_URL_PATTERN_LENGTH = 512
+const URL_PATTERN_MATCH_OPTIONS = { nocase: true, strictBrackets: true, maxLength: MAX_URL_PATTERN_LENGTH }
 
 export interface CategoryMatchContext {
   urls?: readonly string[]
+}
+
+export interface CategoryUrlPatternValidationError {
+  line: number
+  reason: 'invalid-wildcard' | 'invalid-regex' | 'too-long'
 }
 
 /**
@@ -102,6 +108,34 @@ export function normalizeCategoryUrlPatterns(patterns: unknown): string[] {
   return result
 }
 
+export function validateCategoryUrlPatterns(
+  patterns: readonly string[],
+  mode: FileCategory['urlPatternMode'],
+): CategoryUrlPatternValidationError | undefined {
+  const normalizedMode = mode === 'regex' ? 'regex' : 'wildcard'
+
+  for (let index = 0; index < patterns.length; index += 1) {
+    const pattern = patterns[index]?.trim() ?? ''
+    if (!pattern) continue
+    if (pattern.length > MAX_URL_PATTERN_LENGTH) return { line: index + 1, reason: 'too-long' }
+
+    try {
+      if (normalizedMode === 'regex') {
+        new RegExp(pattern, 'i')
+      } else {
+        picomatch.makeRe(pattern, URL_PATTERN_MATCH_OPTIONS)
+      }
+    } catch {
+      return {
+        line: index + 1,
+        reason: normalizedMode === 'regex' ? 'invalid-regex' : 'invalid-wildcard',
+      }
+    }
+  }
+
+  return undefined
+}
+
 export function normalizeFileCategory(category: FileCategory): FileCategory {
   const mode = category.urlPatternMode === 'regex' ? 'regex' : 'wildcard'
   return {
@@ -136,7 +170,7 @@ function urlCandidates(context?: CategoryMatchContext): string[] {
 }
 
 function wildcardMatches(pattern: string, url: string): boolean {
-  return picomatch.isMatch(url, pattern, { nocase: true })
+  return picomatch.isMatch(url, pattern, URL_PATTERN_MATCH_OPTIONS)
 }
 
 function regexMatches(pattern: string, url: string): boolean {

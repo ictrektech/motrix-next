@@ -4,11 +4,22 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { buildDefaultCategories, MAX_FILE_CATEGORIES } from '@shared/constants'
-import { normalizeFileCategory } from '@shared/utils/fileCategory'
+import { normalizeFileCategory, validateCategoryUrlPatterns } from '@shared/utils/fileCategory'
 import type { FileCategory } from '@shared/types'
-import { NButton, NCard, NDynamicTags, NIcon, NInput, NInputGroup, NModal, NSelect, NSpace, NText } from 'naive-ui'
+import {
+  NButton,
+  NCard,
+  NCollapseTransition,
+  NDynamicTags,
+  NIcon,
+  NInput,
+  NInputGroup,
+  NModal,
+  NSelect,
+  NSpace,
+  NText,
+} from 'naive-ui'
 import { FolderOpenOutline } from '@vicons/ionicons5'
-import { useAppMessage } from '@/composables/useAppMessage'
 
 const props = defineProps<{
   show: boolean
@@ -22,9 +33,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const message = useAppMessage()
 const draft = ref<FileCategory[]>([])
 const selectedIndex = ref(0)
+const urlPatternText = ref('')
+const urlRuleError = ref('')
 const resetConfirming = ref(false)
 let resetConfirmTimer: ReturnType<typeof setTimeout> | undefined
 let categoryUid = 0
@@ -70,26 +82,38 @@ function closeModal() {
   emit('update:show', false)
 }
 
-function hasInvalidRegex(categories: FileCategory[]): boolean {
-  return categories.some((category) => {
-    if (category.urlPatternMode !== 'regex') return false
-    return (category.urlPatterns ?? []).some((pattern) => {
-      try {
-        new RegExp(pattern)
-        return false
-      } catch {
-        return true
-      }
-    })
-  })
+function urlPatternLines(category: FileCategory): string[] {
+  if (category === selectedCategory.value) return urlPatternText.value.split(/\r?\n/)
+  return category.urlPatterns ?? []
+}
+
+function urlRuleErrorMessage(reason: string, line: number): string {
+  const key =
+    reason === 'too-long'
+      ? 'preferences.file-category-invalid-url-rule-too-long'
+      : reason === 'invalid-wildcard'
+        ? 'preferences.file-category-invalid-wildcard'
+        : 'preferences.file-category-invalid-regex'
+  return t(key, { line })
+}
+
+function validateUrlRules(): boolean {
+  urlRuleError.value = ''
+  for (const [index, category] of draft.value.entries()) {
+    const error = validateCategoryUrlPatterns(urlPatternLines(category), category.urlPatternMode)
+    if (!error) continue
+    selectedIndex.value = index
+    syncUrlPatternText()
+    urlRuleError.value = urlRuleErrorMessage(error.reason, error.line)
+    return false
+  }
+  return true
 }
 
 function handleSave() {
+  if (!validateUrlRules()) return
+  handleUrlPatternChange(urlPatternText.value)
   draft.value = draft.value.map(normalizeFileCategory)
-  if (hasInvalidRegex(draft.value)) {
-    message.error(t('preferences.file-category-invalid-regex'))
-    return
-  }
   emit('save', cloneCategories(draft.value))
   closeModal()
 }
@@ -114,6 +138,8 @@ function handleDeleteCategory() {
   if (!selectedCategory.value) return
   draft.value.splice(selectedIndex.value, 1)
   selectedIndex.value = Math.max(0, Math.min(selectedIndex.value, draft.value.length - 1))
+  syncUrlPatternText()
+  urlRuleError.value = ''
 }
 
 function stopResetConfirm() {
@@ -138,6 +164,7 @@ function handleResetCategories() {
   stopResetConfirm()
   draft.value = cloneCategories(buildDefaultCategories(props.baseDir))
   selectedIndex.value = 0
+  syncUrlPatternText()
 }
 
 function handleLabelChange(value: string) {
@@ -155,6 +182,8 @@ function handleExtChange(values: string[]) {
 
 function handleUrlPatternChange(value: string) {
   if (!selectedCategory.value) return
+  urlPatternText.value = value
+  urlRuleError.value = ''
   selectedCategory.value.urlPatterns = value
     .split(/\r?\n/)
     .map((item) => item.trim())
@@ -171,10 +200,20 @@ function handleDirectoryInput(value: string) {
   selectedCategory.value.directory = value
 }
 
+function handleSelectCategory(index: number) {
+  selectedIndex.value = index
+  syncUrlPatternText()
+  urlRuleError.value = ''
+}
+
 async function handleSelectCategoryDir() {
   if (!selectedCategory.value) return
   const selected = await openDialog({ directory: true, multiple: false })
   if (typeof selected === 'string') selectedCategory.value.directory = selected
+}
+
+function syncUrlPatternText() {
+  urlPatternText.value = (selectedCategory.value?.urlPatterns ?? []).join('\n')
 }
 
 function handleListItemBeforeLeave(element: Element) {
@@ -193,6 +232,8 @@ watch(
     )
     selectedIndex.value = 0
     stopResetConfirm()
+    syncUrlPatternText()
+    urlRuleError.value = ''
   },
 )
 
@@ -228,7 +269,7 @@ onUnmounted(stopResetConfirm)
               type="button"
               class="category-manager-list-item"
               :class="{ 'category-manager-list-item--active': index === selectedIndex }"
-              @click="selectedIndex = index"
+              @click="handleSelectCategory(index)"
             >
               <span class="category-manager-list-title">{{ categoryTitle(category) }}</span>
               <span class="category-manager-list-meta">{{ categoryMeta(category) }}</span>
@@ -271,19 +312,19 @@ onUnmounted(stopResetConfirm)
         <section v-if="selectedCategory" class="category-manager-editor">
           <Transition name="content-fade" mode="out-in">
             <div :key="selectedIndex" class="category-manager-editor-content">
-              <label class="category-manager-field">
+              <div class="category-manager-field">
                 <span>{{ t('preferences.file-category-custom-label') }}</span>
                 <NInput :value="categoryTitle(selectedCategory)" size="small" @update:value="handleLabelChange" />
-              </label>
+              </div>
 
-              <label class="category-manager-field">
+              <div class="category-manager-field">
                 <span>{{ t('preferences.file-category-file-types') }}</span>
                 <NDynamicTags
                   :value="selectedCategory.extensions.map((extension: string) => `.${extension}`)"
                   size="small"
                   @update:value="handleExtChange"
                 />
-              </label>
+              </div>
 
               <div class="category-manager-field">
                 <div class="category-manager-field-row">
@@ -296,17 +337,25 @@ onUnmounted(stopResetConfirm)
                     @update:value="handleUrlModeChange"
                   />
                 </div>
-                <NInput
-                  :value="(selectedCategory.urlPatterns ?? []).join('\n')"
-                  type="textarea"
-                  :rows="4"
-                  size="small"
-                  :placeholder="t('preferences.file-category-url-placeholder')"
-                  @update:value="handleUrlPatternChange"
-                />
+                <div class="category-manager-url-control">
+                  <NInput
+                    :value="urlPatternText"
+                    type="textarea"
+                    :rows="4"
+                    size="small"
+                    :status="urlRuleError ? 'error' : undefined"
+                    :placeholder="t('preferences.file-category-url-placeholder')"
+                    @update:value="handleUrlPatternChange"
+                  />
+                  <NCollapseTransition :show="!!urlRuleError">
+                    <div class="category-manager-error">
+                      {{ urlRuleError }}
+                    </div>
+                  </NCollapseTransition>
+                </div>
               </div>
 
-              <label class="category-manager-field">
+              <div class="category-manager-field">
                 <span>{{ t('preferences.download-path') }}</span>
                 <NInputGroup>
                   <NInput
@@ -321,7 +370,7 @@ onUnmounted(stopResetConfirm)
                     </template>
                   </NButton>
                 </NInputGroup>
-              </label>
+              </div>
             </div>
           </Transition>
         </section>
@@ -522,8 +571,20 @@ onUnmounted(stopResetConfirm)
   width: 128px;
 }
 
+.category-manager-url-control {
+  min-width: 0;
+}
+
 .category-manager-path {
   flex: 1;
+}
+
+.category-manager-error {
+  margin-top: 6px;
+  color: var(--m3-error);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
 }
 
 .content-fade-enter-active {

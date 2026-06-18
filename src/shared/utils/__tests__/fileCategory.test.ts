@@ -9,7 +9,7 @@
  * V2: FileCategory uses absolute `directory` paths (not relative subdirectory).
  */
 import { describe, it, expect } from 'vitest'
-import { extractExtension, resolveCategory, resolveDownloadDir } from '../fileCategory'
+import { extractExtension, resolveCategory, resolveDownloadDir, validateCategoryUrlPatterns } from '../fileCategory'
 import type { FileCategory } from '@shared/types'
 
 // ── Test fixtures ───────────────────────────────────────────────────
@@ -268,6 +268,37 @@ describe('resolveCategory', () => {
     const result = resolveCategory('', categories, { urls: ['https://reports.example.com/monthly.csv'] })
 
     expect(result?.directory).toBe('/Users/test/Downloads/Reports')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════
+// validateCategoryUrlPatterns
+// ════════════════════════════════════════════════════════════════════
+
+describe('validateCategoryUrlPatterns', () => {
+  it('accepts valid wildcard URL rules', () => {
+    expect(validateCategoryUrlPatterns(['*://*.example.com/logs/*'], 'wildcard')).toBeUndefined()
+  })
+
+  it('reports the first invalid wildcard URL rule line', () => {
+    expect(validateCategoryUrlPatterns(['*://*.example.com/logs/*', 'https://[abc'], 'wildcard')).toEqual({
+      line: 2,
+      reason: 'invalid-wildcard',
+    })
+  })
+
+  it('reports the first invalid regex URL rule line', () => {
+    expect(validateCategoryUrlPatterns(['^https://reports\\.example\\.com/.+$', '^https://(.+'], 'regex')).toEqual({
+      line: 2,
+      reason: 'invalid-regex',
+    })
+  })
+
+  it('reports overlong URL rules instead of dropping them silently', () => {
+    expect(validateCategoryUrlPatterns(['a'.repeat(513)], 'wildcard')).toEqual({
+      line: 1,
+      reason: 'too-long',
+    })
   })
 })
 
