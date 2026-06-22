@@ -230,6 +230,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(services::stat::StatServiceState::new());
     app.manage(services::speed::SpeedSchedulerState::new());
     app.manage(services::monitor::TaskMonitorState::new());
+    app.manage(services::aria2_events::Aria2EventState::new());
     app.manage(services::http_api::HttpApiState::new());
     #[cfg(target_os = "linux")]
     app.manage(services::notification::LinuxNotificationRegistry::new());
