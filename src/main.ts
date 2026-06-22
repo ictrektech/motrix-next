@@ -88,6 +88,7 @@ if (import.meta.env.PROD) {
     }
 
     taskStore.setApi(aria2Api)
+    await historyStore.init().catch((e) => logger.debug('Web.historyInit', e))
     const { setEngineReady } = await import('@/api/aria2')
     setEngineReady(true)
     appStore.engineReady = true

@@ -84,7 +84,15 @@ The container starts both the static web server and aria2. It exposes:
 47000 -> 47000
 ```
 
-Inside the container, aria2 downloads to `/downloads`. Map that to a host directory so completed files persist after the container restarts.
+Inside the container, aria2 downloads to `/downloads`. Map that to a host directory so completed files and aria2 task state persist after the container restarts.
+
+The container stores aria2's session file under:
+
+```text
+/downloads/.aria2/aria2.session
+```
+
+Because this file is inside `/downloads`, a single host bind mount persists both downloaded files and the completed/stopped task list shown by the web UI. The browser-side UI history is stored in the browser's localStorage, while aria2's source-of-truth task state is restored from this session file.
 
 For tc232 testing, map `/downloads` to the `jhu` user's local Downloads directory:
 
@@ -126,6 +134,7 @@ The current tc232 deployment uses:
 Host path:      /home/jhu/Downloads
 Container path: /downloads
 Port mapping:   47000:47000
+Session file:   /home/jhu/Downloads/.aria2/aria2.session
 Image:          swr.cn-southwest-2.myhuaweicloud.com/ictrek/motrix:amd_YYYYMMDD
 ```
 

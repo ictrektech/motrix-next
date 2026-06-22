@@ -3,10 +3,15 @@ import { defineStore } from 'pinia'
 import { reactive, ref, watch } from 'vue'
 import { EMPTY_STRING, TASK_STATUS } from '@shared/constants'
 import { checkTaskIsEd2kSearch, intersection } from '@shared/utils'
+import { getTaskName } from '@shared/utils/task'
 import { logger } from '@shared/logger'
-import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, TaskApi } from '@shared/types'
+import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, HistoryRecord, TaskApi } from '@shared/types'
 
-import { historyRecordToTask, mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
+import {
+  buildHistoryRecord,
+  mergeHistoryIntoTasks,
+  isMetadataTask,
+} from '@/composables/useTaskLifecycle'
 import { buildMetadataOnlyOptions, shouldShowFileSelection } from '@/composables/useMagnetFlow'
 import {
   registerAddedAt,
@@ -19,7 +24,6 @@ import {
   applyManualOrder,
   createManualOrderSnapshot,
   sortTasks,
-  sortRecords,
   type ActiveSortField,
   type AllSortField,
   type SortDirection,
@@ -41,6 +45,57 @@ const DEFAULT_TASK_PAGE_SIZE = 20
 
 function normalizeTaskTab(list: string): TaskTabKey {
   return list === 'stopped' ? 'stopped' : list === 'all' ? 'all' : 'active'
+}
+
+function compareStoppedTasks(
+  a: Aria2Task,
+  b: Aria2Task,
+  field: Exclude<StoppedSortField, 'manual'>,
+  direction: SortDirection,
+  addedAtIndex: Map<string, string>,
+  completedAtIndex: Map<string, string>,
+): number {
+  let av: string | number = ''
+  let bv: string | number = ''
+
+  switch (field) {
+    case 'added-at':
+      av = addedAtIndex.get(a.gid) ?? ''
+      bv = addedAtIndex.get(b.gid) ?? ''
+      break
+    case 'completed-at':
+      av = completedAtIndex.get(a.gid) ?? ''
+      bv = completedAtIndex.get(b.gid) ?? ''
+      break
+    case 'name':
+      av = getTaskName(a).toLowerCase()
+      bv = getTaskName(b).toLowerCase()
+      break
+    case 'size':
+      av = Number(a.totalLength) || 0
+      bv = Number(b.totalLength) || 0
+      break
+  }
+
+  let result: number
+  if (typeof av === 'string' && typeof bv === 'string') {
+    result = av.localeCompare(bv)
+  } else {
+    result = (av as number) - (bv as number)
+  }
+  return direction === 'desc' ? -result : result
+}
+
+function sortStoppedTasks(
+  tasks: Aria2Task[],
+  field: StoppedSortField,
+  direction: SortDirection,
+  records: HistoryRecord[],
+): void {
+  if (field === 'manual') return
+  const addedAtIndex = buildSortableAddedAtMap(tasks, records)
+  const completedAtIndex = new Map(records.map((record) => [record.gid, record.completed_at ?? '']))
+  tasks.sort((a, b) => compareStoppedTasks(a, b, field, direction, addedAtIndex, completedAtIndex))
 }
 
 export const useTaskStore = defineStore('task', () => {
@@ -175,16 +230,29 @@ export const useTaskStore = defineStore('task', () => {
       let data: Aria2Task[]
       if (currentList.value === 'stopped') {
         const historyStore = useHistoryStore()
-        const records = await historyStore.getRecords()
+        const STOPPED_BRIDGE_LIMIT = 256
+        const [records, stoppedTasks] = await Promise.all([
+          historyStore.getRecords(),
+          api.fetchTaskList({ type: 'stopped', limit: STOPPED_BRIDGE_LIMIT }),
+        ])
+        const knownHistoryGids = new Set(records.map((record) => record.gid))
+        const missingHistoryTasks = stoppedTasks.filter(
+          (task) => !knownHistoryGids.has(task.gid) && !checkTaskIsEd2kSearch(task) && !isMetadataTask(task),
+        )
+        for (const task of missingHistoryTasks) {
+          historyStore
+            .addRecord(buildHistoryRecord(task))
+            .catch((e: unknown) => logger.debug('TaskStore.backfillStoppedHistory', e))
+        }
         const { field, direction } = sortConfig.stopped
+        data = mergeHistoryIntoTasks(stoppedTasks, records).filter((t) => !checkTaskIsEd2kSearch(t))
         if (field === 'manual') {
-          applyManualOrder(records, usePreferenceStore().config.taskManualOrder.stopped, (fresh) => {
-            sortRecords(fresh, 'added-at', 'desc')
+          applyManualOrder(data, usePreferenceStore().config.taskManualOrder.stopped, (fresh) => {
+            sortStoppedTasks(fresh, 'added-at', 'desc', records)
           })
         } else {
-          sortRecords(records, field, direction)
+          sortStoppedTasks(data, field, direction, records)
         }
-        data = records.map(historyRecordToTask)
       } else if (currentList.value === 'all') {
         const ALL_STOPPED_LIMIT = 128
         const ALL_HISTORY_LIMIT = 256

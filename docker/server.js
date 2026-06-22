@@ -10,9 +10,10 @@ const PORT = Number(process.env.PORT || 47000)
 const ARIA2_PORT = Number(process.env.ARIA2_PORT || 29100)
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || '/downloads'
 const ROOT = process.env.WEB_ROOT || path.join(__dirname, '../dist')
-const SESSION_FILE = '/tmp/aria2.session'
+const SESSION_FILE = process.env.ARIA2_SESSION_FILE || path.join(DOWNLOAD_DIR, '.aria2', 'aria2.session')
 
 fs.mkdirSync(DOWNLOAD_DIR, { recursive: true })
+fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true })
 fs.closeSync(fs.openSync(SESSION_FILE, 'a'))
 
 const aria2 = spawn('aria2c', [
@@ -21,6 +22,8 @@ const aria2 = spawn('aria2c', [
   `--rpc-listen-port=${ARIA2_PORT}`,
   '--rpc-allow-origin-all=true',
   '--continue=true',
+  '--force-save=true',
+  '--save-session-interval=60',
   '--follow-torrent=true',
   '--enable-dht=true',
   '--enable-peer-exchange=true',
