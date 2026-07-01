@@ -18,10 +18,7 @@ frontend:
   basePath: /app/com.ictrek.motrix-next
   service: motrix-next
 
-assets:
-  - filename: __MOTRIX_ARCHIVE__
-    kind: docker-archive
-    arch: host
+__ASSETS_BLOCK__
 
 storage:
   directories:

@@ -1,6 +1,7 @@
 services:
   motrix-next:
     image: __MOTRIX_IMAGE__
+__PULL_POLICY__
     restart: unless-stopped
     networks:
       - vos_default

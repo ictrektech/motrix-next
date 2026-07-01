@@ -138,7 +138,13 @@ The VOS app package lives in `ictrek.app`. It uses the same Feishu release table
 ./ictrek.app/scripts/package.sh amd
 ```
 
-The package filename version format is `<profile>_YYMMDD`, for example `arm_260701`. VOS requires the manifest version to be SemVer, so `manifest.yml` uses `0.0.1-<profile>.<YYMMDD>`, for example `0.0.1-arm.260701`. The package contains the Motrix Docker image as a `docker-archive` asset. It does not expose a host port; VOS routes the app through:
+The package script supports `--image-source local|pull`. `local` is the default and packages the Motrix Docker image as a `docker-archive` asset. `pull` creates a smaller package with image names only and lets the VOS host pull the image during `docker compose up`:
+
+```bash
+./ictrek.app/scripts/package.sh amd --image-source pull
+```
+
+The package filename version format is `<profile>_YYMMDD`, for example `arm_260701`. VOS requires the manifest version to be SemVer, so `manifest.yml` uses `0.0.1-<profile>.<YYMMDD>`, for example `0.0.1-arm.260701`. It does not expose a host port; VOS routes the app through:
 
 ```text
 /app/com.ictrek.motrix-next/

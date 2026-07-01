@@ -17,6 +17,7 @@ LOCK_DIR="${DIST_DIR}/.package.lock"
 
 PROFILE=""
 SKIP_PULL="${SKIP_PULL:-0}"
+IMAGE_SOURCE="${IMAGE_SOURCE:-local}"
 
 log() { echo "[INFO] $*"; }
 err() { echo "[ERROR] $*" >&2; }
@@ -25,8 +26,13 @@ die() { err "$*"; exit 1; }
 usage() {
   cat <<'EOF'
 Usage:
-  ./ictrek.app/scripts/package.sh arm
-  ./ictrek.app/scripts/package.sh amd
+  ./ictrek.app/scripts/package.sh arm [--image-source local|pull]
+  ./ictrek.app/scripts/package.sh amd [--image-source local|pull]
+
+Options:
+  --image-source local   Package the image as a docker-archive asset. Default.
+  --image-source pull    Write the image name only and let the VOS host pull it.
+  --skip-pull           Do not docker pull before docker save in local mode.
 
 Environment:
   FEISHU_CONFIG_FILE        Feishu credential JSON. Default: ~/.feishu.json
@@ -68,6 +74,32 @@ profile_sheet() {
     amd) echo "AMD_with_cuda" ;;
     *) die "unsupported profile: $1" ;;
   esac
+}
+
+validate_image_source() {
+  case "$1" in
+    local|pull) ;;
+    *) die "unsupported image source: $1. Use local or pull." ;;
+  esac
+}
+
+manifest_assets_block() {
+  if [[ "$IMAGE_SOURCE" == "pull" ]]; then
+    return 0
+  fi
+
+  cat <<EOF
+assets:
+  - filename: ${MOTRIX_ARCHIVE}
+    kind: docker-archive
+    arch: host
+EOF
+}
+
+pull_policy_line() {
+  if [[ "$IMAGE_SOURCE" == "pull" ]]; then
+    printf '    pull_policy: always'
+  fi
 }
 
 read_feishu_field() {
@@ -232,7 +264,8 @@ safe_name_from_image() {
 render_file() {
   local src="$1"
   local dst="$2"
-  python3 - "$src" "$dst" "$APP_VERSION" "$VOS_ARCH" "$MOTRIX_IMAGE" "$MOTRIX_ARCHIVE" <<'PY'
+  python3 - "$src" "$dst" "$APP_VERSION" "$VOS_ARCH" "$MOTRIX_IMAGE" "$MOTRIX_ARCHIVE" \
+    "$(manifest_assets_block)" "$(pull_policy_line)" <<'PY'
 import sys
 from pathlib import Path
 
@@ -242,6 +275,8 @@ replacements = {
     "__VOS_ARCH__": sys.argv[4],
     "__MOTRIX_IMAGE__": sys.argv[5],
     "__MOTRIX_ARCHIVE__": sys.argv[6],
+    "__ASSETS_BLOCK__": sys.argv[7],
+    "__PULL_POLICY__": sys.argv[8],
 }
 text = src.read_text(encoding="utf-8")
 for key, value in replacements.items():
@@ -275,13 +310,25 @@ verify_package() {
 
   tar tzf "$app_tarball" >/dev/null
   tar tf "$package_path" | grep -qx "app.tar.gz"
-  tar tf "$package_path" | grep -qx "assets/${VOS_ARCH}/${MOTRIX_ARCHIVE}"
+  if [[ "$IMAGE_SOURCE" == "local" ]]; then
+    tar tf "$package_path" | grep -qx "assets/${VOS_ARCH}/${MOTRIX_ARCHIVE}"
+  else
+    ! tar tf "$package_path" | grep -q "^assets/"
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     arm|amd)
       PROFILE="$1"
+      shift
+      ;;
+    --image-source)
+      IMAGE_SOURCE="${2:-}"
+      shift 2
+      ;;
+    --skip-pull)
+      SKIP_PULL=1
       shift
       ;;
     -h|--help)
@@ -303,10 +350,14 @@ PACKAGE_VERSION="${PROFILE}_$(date +%y%m%d)"
 APP_VERSION="0.0.1-${PROFILE}.$(date +%y%m%d)"
 
 require_cmd curl
-require_cmd docker
-require_cmd gzip
 require_cmd python3
 require_cmd tar
+
+validate_image_source "$IMAGE_SOURCE"
+if [[ "$IMAGE_SOURCE" == "local" ]]; then
+  require_cmd docker
+  require_cmd gzip
+fi
 
 [[ -f "$FEISHU_CONFIG_FILE" ]] || die "Feishu config not found: $FEISHU_CONFIG_FILE"
 
@@ -320,6 +371,7 @@ FEISHU_APP_SECRET="$(read_feishu_field "feishu_app_secret")"
 log "Package version: ${PACKAGE_VERSION}"
 log "Manifest version: ${APP_VERSION}"
 log "Profile: ${PROFILE} (${VOS_ARCH}), sheet: ${SHEET_TITLE}"
+log "Image source: ${IMAGE_SOURCE}"
 
 FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
 SHEET_ID="$(get_sheet_id_by_title "$FEISHU_TOKEN" "$SHEET_TITLE")"
@@ -339,12 +391,19 @@ done
 
 APP_TARBALL="${DIST_DIR}/app.tar.gz"
 PACKAGE_PATH="${DIST_DIR}/${APP_NAME}_${PACKAGE_VERSION}.tar"
+if [[ "$IMAGE_SOURCE" == "pull" ]]; then
+  PACKAGE_PATH="${DIST_DIR}/${APP_NAME}_${PACKAGE_VERSION}_pull.tar"
+fi
 ASSET_DIR="${PACKAGE_ROOT}/assets/${VOS_ARCH}"
 
 tar czf "$APP_TARBALL" -C "$STAGE_DIR" manifest.yml docker-compose.yml configs.yml routers.yml README.zh-CN.md README.en.md
 cp "$APP_TARBALL" "${PACKAGE_ROOT}/app.tar.gz"
-export_image "$MOTRIX_IMAGE" "$MOTRIX_ARCHIVE" "$ASSET_DIR"
-tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz assets
+if [[ "$IMAGE_SOURCE" == "local" ]]; then
+  export_image "$MOTRIX_IMAGE" "$MOTRIX_ARCHIVE" "$ASSET_DIR"
+  tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz assets
+else
+  tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz
+fi
 verify_package "$PACKAGE_PATH" "$APP_TARBALL"
 
 log "Done: ${PACKAGE_PATH}"
