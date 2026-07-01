@@ -146,6 +146,8 @@ The package filename version format is `<profile>_YYMMDD`, for example `arm_2607
 
 VOS persists downloads and aria2 task state through `${VOS_APP_STORAGE_PATH}/downloads:/downloads`.
 
+The VOS gateway redirects `/app/com.ictrek.motrix-next` to `/app/com.ictrek.motrix-next/` so relative web assets resolve under the app path.
+
 ## Desktop Code Signing
 
 Motrix Next desktop release artifacts are not code-signed on macOS or Windows, so browsers or antivirus tools may show a warning. Upstream `.sig` files are Tauri updater signatures. See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for verification details.

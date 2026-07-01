@@ -14,7 +14,10 @@ services:
       - "traefik.docker.network=vos_default"
       - "traefik.http.routers.motrix-next-web.rule=PathPrefix(`/app/com.ictrek.motrix-next`)"
       - "traefik.http.routers.motrix-next-web.service=motrix-next-web"
-      - "traefik.http.routers.motrix-next-web.middlewares=motrix-next-web-strip"
+      - "traefik.http.routers.motrix-next-web.middlewares=motrix-next-web-slash,motrix-next-web-strip"
+      - "traefik.http.middlewares.motrix-next-web-slash.redirectregex.regex=^(.*)/app/com\\.ictrek\\.motrix-next$"
+      - "traefik.http.middlewares.motrix-next-web-slash.redirectregex.replacement=$${1}/app/com.ictrek.motrix-next/"
+      - "traefik.http.middlewares.motrix-next-web-slash.redirectregex.permanent=true"
       - "traefik.http.middlewares.motrix-next-web-strip.stripprefix.prefixes=/app/com.ictrek.motrix-next"
       - "traefik.http.services.motrix-next-web.loadbalancer.server.port=47000"
     healthcheck:

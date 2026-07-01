@@ -15,4 +15,4 @@ cd apps/motrix-next
 
 The package filename version format is `<profile>_YYMMDD`, for example `arm_260701`. VOS requires `manifest.yml.version` to be SemVer, so the manifest uses `0.0.1-<profile>.<YYMMDD>`, for example `0.0.1-arm.260701`. The package tar is written to `ictrek.app/dist/`.
 
-The package contains the Docker image as a local `docker-archive` asset and does not expose a host port. VOS routes traffic through `/app/com.ictrek.motrix-next/` and persists downloads in `${VOS_APP_STORAGE_PATH}/downloads`.
+The package contains the Docker image as a local `docker-archive` asset and does not expose a host port. VOS routes traffic through `/app/com.ictrek.motrix-next/` and redirects `/app/com.ictrek.motrix-next` to the trailing-slash URL so relative web assets resolve correctly. Downloads persist in `${VOS_APP_STORAGE_PATH}/downloads`.
