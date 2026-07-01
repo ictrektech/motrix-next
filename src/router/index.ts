@@ -1,8 +1,10 @@
 /** @fileoverview Vue Router configuration with task and preference routes. */
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
+
+const isWebApp = import.meta.env.VITE_WEB_APP === 'true'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: isWebApp ? createWebHashHistory() : createWebHistory(),
   routes: [
     {
       path: '/',

@@ -71,8 +71,8 @@ swr.cn-southwest-2.myhuaweicloud.com/ictrek/motrix:<profile>_YYYYMMDD
 
 `build_image.sh` writes the pushed tag to the existing Feishu release table:
 
-- `amd` -> sheet `AMD_with_cuda`, column `motrix`
-- `arm` -> sheet `ARM_without_cuda`, column `motrix`
+- `amd` -> sheets `AMD_with_cuda`, `AMD_with_mxn100`, column `motrix`
+- `arm` -> sheets `ARM_without_cuda`, `ARM_with_cuda`, `l4t`, `thor_spark`, `SOPHON_bm1688`, column `motrix`
 
 The sheet names are compatibility labels only. The Docker images do not use CUDA.
 
@@ -125,6 +125,30 @@ File-existence checks used by task cards are scoped to `/downloads`:
 ```bash
 curl 'http://127.0.0.1:47000/api/path-exists?path=%2Fdownloads%2Fexample.zip'
 ```
+
+## VOS App Package
+
+The VOS app package lives in `ictrek.app`. It uses the same Feishu release table as `build_image.sh`: build and push the image first, then package by reading the latest `motrix` tag from Feishu.
+
+```bash
+./build_image.sh arm
+./ictrek.app/scripts/package.sh arm
+
+./build_image.sh amd
+./ictrek.app/scripts/package.sh amd
+```
+
+The package filename version format is `<profile>_YYMMDD`, for example `arm_260701`. VOS requires the manifest version to be SemVer, so `manifest.yml` uses `0.0.1-<profile>.<YYMMDD>`, for example `0.0.1-arm.260701`. The package contains the Motrix Docker image as a `docker-archive` asset. It does not expose a host port; VOS routes the app through:
+
+```text
+/app/com.ictrek.motrix-next/
+```
+
+VOS persists downloads and aria2 task state through `${VOS_APP_STORAGE_PATH}/downloads:/downloads`.
+
+## Desktop Code Signing
+
+Motrix Next desktop release artifacts are not code-signed on macOS or Windows, so browsers or antivirus tools may show a warning. Upstream `.sig` files are Tauri updater signatures. See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for verification details.
 
 ## tc232 Deployment
 

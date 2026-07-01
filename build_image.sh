@@ -6,10 +6,8 @@ IMG_NAME="motrix"
 FEISHU_CONFIG_FILE="${HOME}/.feishu.json"
 FEISHU_SPREADSHEET_TOKEN="Htotsn3oahO1zxt73YMcaB1zn8e"
 
-declare -A PROFILE_TO_SHEET_TITLE=(
-  ["amd"]="AMD_with_cuda"
-  ["arm"]="ARM_without_cuda"
-)
+AMD_SHEETS=("AMD_with_cuda" "AMD_with_mxn100")
+ARM_SHEETS=("ARM_without_cuda" "ARM_with_cuda" "l4t" "thor_spark" "SOPHON_bm1688")
 
 declare -A PROFILE_TO_DOCKERFILE=(
   ["amd"]="Dockerfile.amd"
@@ -34,6 +32,16 @@ require_cmd() {
     err "missing command: $1"
     exit 1
   }
+}
+
+contains() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
 }
 
 read_feishu_field() {
@@ -382,6 +390,12 @@ usage() {
 Usage:
   ./build_image.sh [amd|arm]
   ./build_image.sh --profile [amd|arm]
+  ./build_image.sh --sheet AMD_with_cuda
+  ./build_image.sh --sheet l4t --sheet thor_spark
+
+Supported sheets:
+  AMD: AMD_with_cuda, AMD_with_mxn100
+  ARM: ARM_without_cuda, ARM_with_cuda, l4t, thor_spark, SOPHON_bm1688
 EOF
 }
 
@@ -394,6 +408,14 @@ detect_profile() {
 }
 
 PROFILE="$(detect_profile)"
+TARGET_SHEETS=()
+
+if [[ -n "${MOTRIX_RELEASE_SHEETS:-}" ]]; then
+  IFS=',' read -r -a ENV_SHEETS <<< "${MOTRIX_RELEASE_SHEETS}"
+  for sheet in "${ENV_SHEETS[@]}"; do
+    [[ -n "$sheet" ]] && TARGET_SHEETS+=("$sheet")
+  done
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -403,6 +425,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --profile)
       PROFILE="${2:-}"
+      shift 2
+      ;;
+    --sheet)
+      TARGET_SHEETS+=("${2:-}")
       shift 2
       ;;
     -h|--help)
@@ -423,13 +449,35 @@ if [[ "$PROFILE" != "amd" && "$PROFILE" != "arm" ]]; then
   exit 1
 fi
 
-TARGET_SHEET_TITLE="${PROFILE_TO_SHEET_TITLE[$PROFILE]}"
+if [[ ${#TARGET_SHEETS[@]} -eq 0 ]]; then
+  if [[ "$PROFILE" == "amd" ]]; then
+    TARGET_SHEETS=("${AMD_SHEETS[@]}")
+  else
+    TARGET_SHEETS=("${ARM_SHEETS[@]}")
+  fi
+fi
+
+for sheet in "${TARGET_SHEETS[@]}"; do
+  if [[ "$PROFILE" == "amd" ]]; then
+    contains "$sheet" "${AMD_SHEETS[@]}" || {
+      err "Sheet ${sheet} is not valid for amd"
+      exit 1
+    }
+  else
+    contains "$sheet" "${ARM_SHEETS[@]}" || {
+      err "Sheet ${sheet} is not valid for arm"
+      exit 1
+    }
+  fi
+done
+
 DOCKERFILE="${PROFILE_TO_DOCKERFILE[$PROFILE]}"
 PLATFORM="${PROFILE_TO_PLATFORM[$PROFILE]}"
 
 DATE=$(date +%Y%m%d)
 TAG="${PROFILE}_${DATE}"
-IMAGE_URI="swr.cn-southwest-2.myhuaweicloud.com/ictrek/${IMG_NAME}:${TAG}"
+IMAGE_REPOSITORY="swr.cn-southwest-2.myhuaweicloud.com/ictrek/${IMG_NAME}"
+IMAGE_URI="${IMAGE_REPOSITORY}:${TAG}"
 
 require_cmd curl
 require_cmd python3
@@ -456,7 +504,7 @@ fi
 log "PROFILE=${PROFILE}"
 log "PLATFORM=${PLATFORM}"
 log "DOCKERFILE=${DOCKERFILE}"
-log "TARGET_SHEET_TITLE=${TARGET_SHEET_TITLE}"
+log "TARGET_SHEETS=${TARGET_SHEETS[*]}"
 log "IMG_NAME=${IMG_NAME}"
 log "TAG=${TAG}"
 
@@ -470,27 +518,33 @@ docker push "${IMAGE_URI}"
 
 log "Docker push succeeded: ${IMAGE_URI}"
 
-FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
-SHEET_ID="$(get_sheet_id_by_title "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$TARGET_SHEET_TITLE")"
-log "Resolved sheet: ${TARGET_SHEET_TITLE} -> ${SHEET_ID}"
-
-FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
-COMPONENT_COL="$(find_component_column_letter "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "$IMG_NAME")"
-log "Resolved component column: ${IMG_NAME} -> ${COMPONENT_COL}"
-
-FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
-DATE_ROW="$(find_date_row "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "$DATE")"
-
-if [[ -z "$DATE_ROW" ]]; then
-  log "Date ${DATE} not found, creating a new row at top of data area"
+for sheet in "${TARGET_SHEETS[@]}"; do
   FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
-  prepend_date_row "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "$DATE" >/dev/null
-  DATE_ROW=4
-else
-  log "Date ${DATE} already exists at row ${DATE_ROW}"
-fi
+  SHEET_ID="$(get_sheet_id_by_title "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$sheet")"
+  log "Resolved sheet: ${sheet} -> ${SHEET_ID}"
 
-FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
-write_cell "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "${COMPONENT_COL}${DATE_ROW}" "$TAG" >/dev/null
+  FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
+  COMPONENT_COL="$(find_component_column_letter "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "$IMG_NAME")"
+  log "Resolved component column: ${IMG_NAME} -> ${COMPONENT_COL}"
 
-log "Feishu updated: ${TARGET_SHEET_TITLE}!${COMPONENT_COL}${DATE_ROW} = ${TAG}"
+  FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
+  write_cell "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "${COMPONENT_COL}1" "$IMG_NAME" >/dev/null
+  write_cell "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "${COMPONENT_COL}2" "$IMAGE_REPOSITORY" >/dev/null
+
+  FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
+  DATE_ROW="$(find_date_row "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "$DATE")"
+
+  if [[ -z "$DATE_ROW" ]]; then
+    log "Date ${DATE} not found, creating a new row at top of data area"
+    FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
+    prepend_date_row "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "$DATE" >/dev/null
+    DATE_ROW=4
+  else
+    log "Date ${DATE} already exists at row ${DATE_ROW}"
+  fi
+
+  FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
+  write_cell "$FEISHU_TOKEN" "$FEISHU_SPREADSHEET_TOKEN" "$SHEET_ID" "${COMPONENT_COL}${DATE_ROW}" "$TAG" >/dev/null
+
+  log "Feishu updated: ${sheet}!${COMPONENT_COL}${DATE_ROW} = ${TAG}"
+done

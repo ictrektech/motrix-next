@@ -11,9 +11,13 @@ type RpcParam = RpcPrimitive | RpcParam[] | { [key: string]: RpcParam }
 
 let rpcId = 0
 
+function rpcEndpoint(): string {
+  return new URL('jsonrpc', window.location.href).toString()
+}
+
 async function rpc<T>(method: string, params: RpcParam[] = []): Promise<T> {
   const id = `web-${++rpcId}`
-  const response = await fetch('/jsonrpc', {
+  const response = await fetch(rpcEndpoint(), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),

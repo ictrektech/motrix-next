@@ -1,0 +1,29 @@
+id: com.ictrek.motrix-next
+name:
+  zh-CN: Motrix Next
+  en: Motrix Next
+description:
+  zh-CN: 面向 VOS 的 Motrix Next 下载管理 Web 应用，提供 aria2 任务管理与下载目录持久化。
+  en: Motrix Next download manager for VOS, with aria2 task management and persistent downloads.
+version: __APP_VERSION__
+author: ictrek
+category: [storage]
+arch: [__VOS_ARCH__]
+
+platform:
+  version: ">=3.0.0"
+
+frontend:
+  enabled: true
+  basePath: /app/com.ictrek.motrix-next
+  service: motrix-next
+
+assets:
+  - filename: __MOTRIX_ARCHIVE__
+    kind: docker-archive
+    arch: host
+
+storage:
+  directories:
+    - path: downloads
+      mode: "0755"

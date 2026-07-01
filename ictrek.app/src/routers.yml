@@ -1,0 +1,13 @@
+routers:
+  - id: file-manager
+    kind: group
+    children:
+      - id: motrix-next
+        kind: page
+        title:
+          zh-CN: 下载管理
+          en: Downloads
+        icon: lucide:download-cloud
+        iframe-src: /app/com.ictrek.motrix-next/
+        order: 60
+        keep-alive: true

@@ -32,6 +32,7 @@ const webAliases = isWebApp
   : {}
 
 export default defineConfig(async () => ({
+  base: isWebApp ? './' : '/',
   plugins: [
     vue(),
     UnoCSS(),

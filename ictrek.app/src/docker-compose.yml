@@ -1,0 +1,29 @@
+services:
+  motrix-next:
+    image: __MOTRIX_IMAGE__
+    restart: unless-stopped
+    networks:
+      - vos_default
+    environment:
+      PORT: "47000"
+      DOWNLOAD_DIR: /downloads
+    volumes:
+      - ${VOS_APP_STORAGE_PATH}/downloads:/downloads
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=vos_default"
+      - "traefik.http.routers.motrix-next-web.rule=PathPrefix(`/app/com.ictrek.motrix-next`)"
+      - "traefik.http.routers.motrix-next-web.service=motrix-next-web"
+      - "traefik.http.routers.motrix-next-web.middlewares=motrix-next-web-strip"
+      - "traefik.http.middlewares.motrix-next-web-strip.stripprefix.prefixes=/app/com.ictrek.motrix-next"
+      - "traefik.http.services.motrix-next-web.loadbalancer.server.port=47000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:47000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+networks:
+  vos_default:
+    external: true
