@@ -29,7 +29,7 @@ cd apps/motrix-next
 ./ictrek.app/scripts/package.sh amd --image-source pull
 ```
 
-打包脚本需要 `~/.feishu.json` 中的飞书凭据。只有默认 `local` 模式需要 Docker，因为该模式会通过 `docker save` 导出镜像归档。
+打包脚本优先读取 `~/.feishu.components.json` 中的只读飞书凭据；文件不存在或组件版本读取失败时回退到 `~/.feishu.json`。只有默认 `local` 模式需要 Docker，因为该模式会通过 `docker save` 导出镜像归档。
 
 脚本会从飞书发布表读取 `motrix` 组件的最新标签。
 
@@ -179,7 +179,7 @@ cd apps/motrix-next
 ./ictrek.app/scripts/package.sh amd --image-source pull
 ```
 
-The package script requires Feishu credentials at `~/.feishu.json`. Docker is required only for the default `local` mode because that mode exports image archives with `docker save`.
+The package script first reads read-only Feishu credentials from `~/.feishu.components.json`; if the file is missing or component version lookup fails, it falls back to `~/.feishu.json`. Docker is required only for the default `local` mode because that mode exports image archives with `docker save`.
 
 The script reads the latest component tag for `motrix` from the Feishu release spreadsheet.
 

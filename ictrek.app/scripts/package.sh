@@ -6,7 +6,8 @@ APP_ID="com.ictrek.motrix-next"
 COMPONENT_NAME="motrix"
 REGISTRY="swr.cn-southwest-2.myhuaweicloud.com/ictrek"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
-FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.json}"
+FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
+FEISHU_FALLBACK_CONFIG_FILE="${FEISHU_FALLBACK_CONFIG_FILE:-${HOME}/.feishu.json}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="${ROOT_DIR}/src"
@@ -35,7 +36,9 @@ Options:
   --skip-pull           Do not docker pull before docker save in local mode.
 
 Environment:
-  FEISHU_CONFIG_FILE        Feishu credential JSON. Default: ~/.feishu.json
+  FEISHU_CONFIG_FILE        Feishu credential JSON. Default: ~/.feishu.components.json
+  FEISHU_FALLBACK_CONFIG_FILE
+                            Fallback credential JSON. Default: ~/.feishu.json
   FEISHU_SPREADSHEET_TOKEN  Release spreadsheet token.
   SKIP_PULL=1               Reuse an already-pulled local image when exporting.
 EOF
@@ -103,8 +106,9 @@ pull_policy_line() {
 }
 
 read_feishu_field() {
-  local field="$1"
-  python3 - "$FEISHU_CONFIG_FILE" "$field" <<'PY'
+  local config_file="$1"
+  local field="$2"
+  python3 - "$config_file" "$field" <<'PY'
 import json
 import sys
 
@@ -256,6 +260,32 @@ raise SystemExit("latest version not found")
 PY
 }
 
+resolve_feishu_tag() {
+  local sheet_title="$1"
+  local config_file tried=""
+
+  for config_file in "$FEISHU_CONFIG_FILE" "$FEISHU_FALLBACK_CONFIG_FILE"; do
+    [[ -n "$config_file" && "$tried" != *"|$config_file|"* ]] || continue
+    tried="${tried}|${config_file}|"
+    [[ -r "$config_file" ]] || { log "Skip unreadable Feishu config: ${config_file}"; continue; }
+
+    log "Read component version with Feishu config: ${config_file}"
+    if FEISHU_APP_ID="$(read_feishu_field "$config_file" "feishu_app_id")" \
+      && FEISHU_APP_SECRET="$(read_feishu_field "$config_file" "feishu_app_secret")" \
+      && [[ -n "$FEISHU_APP_ID" && -n "$FEISHU_APP_SECRET" ]] \
+      && FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")" \
+      && SHEET_ID="$(get_sheet_id_by_title "$FEISHU_TOKEN" "$sheet_title")" \
+      && COMPONENT_COL="$(find_component_column_letter "$FEISHU_TOKEN" "$SHEET_ID" "$COMPONENT_NAME")" \
+      && MOTRIX_TAG="$(find_latest_tag "$FEISHU_TOKEN" "$SHEET_ID" "$COMPONENT_COL")"; then
+      return 0
+    fi
+
+    log "Cannot read component version from ${config_file}; trying fallback"
+  done
+
+  die "failed to read component version from Feishu configs"
+}
+
 safe_name_from_image() {
   local image="$1"
   echo "$image" | sed -E 's|.*/||; s|[:/]|-|g'
@@ -359,24 +389,15 @@ if [[ "$IMAGE_SOURCE" == "local" ]]; then
   require_cmd gzip
 fi
 
-[[ -f "$FEISHU_CONFIG_FILE" ]] || die "Feishu config not found: $FEISHU_CONFIG_FILE"
-
 mkdir -p "$DIST_DIR"
 acquire_lock
-
-FEISHU_APP_ID="$(read_feishu_field "feishu_app_id")"
-FEISHU_APP_SECRET="$(read_feishu_field "feishu_app_secret")"
-[[ -n "$FEISHU_APP_ID" && -n "$FEISHU_APP_SECRET" ]] || die "feishu_app_id or feishu_app_secret missing"
 
 log "Package version: ${PACKAGE_VERSION}"
 log "Manifest version: ${APP_VERSION}"
 log "Profile: ${PROFILE} (${VOS_ARCH}), sheet: ${SHEET_TITLE}"
 log "Image source: ${IMAGE_SOURCE}"
 
-FEISHU_TOKEN="$(get_feishu_token "$FEISHU_APP_ID" "$FEISHU_APP_SECRET")"
-SHEET_ID="$(get_sheet_id_by_title "$FEISHU_TOKEN" "$SHEET_TITLE")"
-COMPONENT_COL="$(find_component_column_letter "$FEISHU_TOKEN" "$SHEET_ID" "$COMPONENT_NAME")"
-MOTRIX_TAG="$(find_latest_tag "$FEISHU_TOKEN" "$SHEET_ID" "$COMPONENT_COL")"
+resolve_feishu_tag "$SHEET_TITLE"
 MOTRIX_IMAGE="${REGISTRY}/${COMPONENT_NAME}:${MOTRIX_TAG}"
 MOTRIX_ARCHIVE="$(safe_name_from_image "$MOTRIX_IMAGE").tar.gz"
 
