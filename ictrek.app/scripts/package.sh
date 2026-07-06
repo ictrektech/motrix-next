@@ -14,6 +14,7 @@ SRC_DIR="${ROOT_DIR}/src"
 DIST_DIR="${ROOT_DIR}/dist"
 STAGE_DIR="${DIST_DIR}/staging"
 PACKAGE_ROOT="${DIST_DIR}/package-root"
+VERSION_FILE="${ROOT_DIR}/VERSION"
 LOCK_DIR="${DIST_DIR}/.package.lock"
 
 PROFILE=""
@@ -77,6 +78,25 @@ profile_sheet() {
     amd) echo "AMD_with_cuda" ;;
     *) die "unsupported profile: $1" ;;
   esac
+}
+
+next_version() {
+  local current major minor patch
+  current="$(tr -d '[:space:]' < "$VERSION_FILE")"
+  [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "invalid VERSION: $current"
+  IFS=. read -r major minor patch <<< "$current"
+  if (( patch < 999 )); then
+    patch=$((patch + 1))
+  else
+    patch=0
+    if (( minor < 999 )); then
+      minor=$((minor + 1))
+    else
+      minor=0
+      major=$((major + 1))
+    fi
+  fi
+  echo "${major}.${minor}.${patch}"
 }
 
 validate_image_source() {
@@ -376,8 +396,6 @@ done
 PROFILE="${PROFILE:-$(detect_profile)}"
 VOS_ARCH="$(profile_arch "$PROFILE")"
 SHEET_TITLE="$(profile_sheet "$PROFILE")"
-PACKAGE_VERSION="${PROFILE}_$(date +%y%m%d)"
-APP_VERSION="0.0.1-${PROFILE}.$(date +%y%m%d)"
 
 require_cmd curl
 require_cmd python3
@@ -392,8 +410,10 @@ fi
 mkdir -p "$DIST_DIR"
 acquire_lock
 
-log "Package version: ${PACKAGE_VERSION}"
-log "Manifest version: ${APP_VERSION}"
+[[ -f "$VERSION_FILE" ]] || echo "0.0.0" > "$VERSION_FILE"
+APP_VERSION="$(next_version)"
+
+log "Package version: ${APP_VERSION}"
 log "Profile: ${PROFILE} (${VOS_ARCH}), sheet: ${SHEET_TITLE}"
 log "Image source: ${IMAGE_SOURCE}"
 
@@ -411,10 +431,11 @@ for file in manifest.yml docker-compose.yml configs.yml routers.yml README.zh-CN
 done
 
 APP_TARBALL="${DIST_DIR}/app.tar.gz"
-PACKAGE_PATH="${DIST_DIR}/${APP_NAME}_${PACKAGE_VERSION}.tar"
+PACKAGE_NAME="${APP_NAME}_${APP_VERSION}_${PROFILE}.tar"
 if [[ "$IMAGE_SOURCE" == "pull" ]]; then
-  PACKAGE_PATH="${DIST_DIR}/${APP_NAME}_${PACKAGE_VERSION}_pull.tar"
+  PACKAGE_NAME="${APP_NAME}_${APP_VERSION}_${PROFILE}_pull.tar"
 fi
+PACKAGE_PATH="${DIST_DIR}/${PACKAGE_NAME}"
 ASSET_DIR="${PACKAGE_ROOT}/assets/${VOS_ARCH}"
 
 tar czf "$APP_TARBALL" -C "$STAGE_DIR" manifest.yml docker-compose.yml configs.yml routers.yml README.zh-CN.md README.en.md
@@ -426,5 +447,6 @@ else
   tar cf "$PACKAGE_PATH" -C "$PACKAGE_ROOT" app.tar.gz
 fi
 verify_package "$PACKAGE_PATH" "$APP_TARBALL"
+echo "$APP_VERSION" > "$VERSION_FILE"
 
 log "Done: ${PACKAGE_PATH}"

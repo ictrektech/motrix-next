@@ -47,37 +47,33 @@ cd apps/motrix-next
 local 模式生成：
 
 ```text
-dist/motrix-next_<profile>_<YYMMDD>.tar
+dist/motrix-next_<version>_<profile>.tar
 ```
 
 pull 模式生成：
 
 ```text
-dist/motrix-next_<profile>_<YYMMDD>_pull.tar
+dist/motrix-next_<version>_<profile>_pull.tar
 ```
 
 `dist/` 目录和生成的 tar 文件已被忽略，不应提交。
 
 ## 版本号
 
-安装包文件名使用 `<profile>_YYMMDD`，例如：
+`VERSION` 保存最近一次成功打包版本。打包脚本每次成功后自动自增 patch 版本：
 
 ```text
-motrix-next_amd_260701.tar
-motrix-next_amd_260701_pull.tar
+0.0.1 -> 0.0.2 -> ... -> 0.0.999 -> 0.1.0
 ```
 
-VOS 要求 `manifest.yml.version` 使用 SemVer，因此 manifest 中使用：
+生成的安装包文件名包含自增版本和 profile，例如：
 
 ```text
-0.0.1-<profile>.<YYMMDD>
+motrix-next_0.0.2_amd.tar
+motrix-next_0.0.2_amd_pull.tar
 ```
 
-例如：
-
-```text
-0.0.1-amd.260701
-```
+VOS 要求 `manifest.yml.version` 使用 SemVer，因此 manifest 中直接使用该自增版本，例如 `0.0.2`。
 
 ## 本地 VOS 安装测试
 
@@ -93,7 +89,7 @@ cd /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp
 vos-platform-cli app install-local \
   --temp-dir /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp/ \
   --admin-password Aa123456 \
-  --package-path ./motrix-next_amd_260701.tar \
+  --package-path ./motrix-next_0.0.2_amd.tar \
   --volume app_space \
   -v
 ```
@@ -197,37 +193,33 @@ The script reads the latest component tag for `motrix` from the Feishu release s
 Local mode creates:
 
 ```text
-dist/motrix-next_<profile>_<YYMMDD>.tar
+dist/motrix-next_<version>_<profile>.tar
 ```
 
 Pull mode creates:
 
 ```text
-dist/motrix-next_<profile>_<YYMMDD>_pull.tar
+dist/motrix-next_<version>_<profile>_pull.tar
 ```
 
 The `dist/` directory and generated tar files are ignored and must not be committed.
 
 ## Version
 
-The package filename version uses `<profile>_YYMMDD`, for example:
+`VERSION` stores the last successful package version. The package script increments the patch version after every successful build:
 
 ```text
-motrix-next_amd_260701.tar
-motrix-next_amd_260701_pull.tar
+0.0.1 -> 0.0.2 -> ... -> 0.0.999 -> 0.1.0
 ```
 
-VOS requires `manifest.yml.version` to be SemVer, so the manifest uses:
+The package filename contains the incremented version and profile, for example:
 
 ```text
-0.0.1-<profile>.<YYMMDD>
+motrix-next_0.0.2_amd.tar
+motrix-next_0.0.2_amd_pull.tar
 ```
 
-For example:
-
-```text
-0.0.1-amd.260701
-```
+VOS requires `manifest.yml.version` to be SemVer, so the manifest uses the same incremented version directly, for example `0.0.2`.
 
 ## Local VOS Install Test
 
@@ -243,7 +235,7 @@ cd /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp
 vos-platform-cli app install-local \
   --temp-dir /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp/ \
   --admin-password Aa123456 \
-  --package-path ./motrix-next_amd_260701.tar \
+  --package-path ./motrix-next_0.0.2_amd.tar \
   --volume app_space \
   -v
 ```

@@ -1,13 +1,18 @@
 routers:
-  - id: file-manager
+  - id: com-ictrek-motrix-next
     kind: group
+    title:
+      zh-CN: Motrix Next
+      en: Motrix Next
+    icon: lucide:download-cloud
+    order: 200
     children:
-      - id: motrix-next
+      - id: downloads
         kind: page
         title:
           zh-CN: 下载管理
           en: Downloads
         icon: lucide:download-cloud
         iframe-src: /app/com.ictrek.motrix-next/
-        order: 60
+        order: 10
         keep-alive: true

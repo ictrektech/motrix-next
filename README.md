@@ -144,7 +144,7 @@ The package script supports `--image-source local|pull`. `local` is the default 
 ./ictrek.app/scripts/package.sh amd --image-source pull
 ```
 
-The package filename version format is `<profile>_YYMMDD`, for example `arm_260701`. VOS requires the manifest version to be SemVer, so `manifest.yml` uses `0.0.1-<profile>.<YYMMDD>`, for example `0.0.1-arm.260701`. It does not expose a host port; VOS routes the app through:
+The package script increments `ictrek.app/VERSION` after every successful build. Package filenames use `<version>_<profile>`, for example `motrix-next_0.0.2_amd.tar`. VOS requires the manifest version to be SemVer, so `manifest.yml` uses the same incremented version directly, for example `0.0.2`. It does not expose a host port; VOS routes the app through:
 
 ```text
 /app/com.ictrek.motrix-next/
