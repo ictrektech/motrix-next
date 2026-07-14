@@ -1,6 +1,7 @@
 # Motrix Next VOS 应用打包说明
 
 本目录包含 VOS app `com.ictrek.motrix-next` 的安装包模板。
+发布流程以 `update_version.sh` 触发的 GitHub Actions 为准。
 
 ## 打包
 
