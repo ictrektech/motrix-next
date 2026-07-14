@@ -73,5 +73,5 @@ jobs:
           gh release create "$PUBLIC_TAG" "ictrek.app/dist/motrix-next_${VERSION}_pull.tar" \
             --verify-tag \
             --latest \
-            --title "VOS Motrix Next v${VERSION}" \
+            --title "v${VERSION}" \
             --notes-file release-notes.md
