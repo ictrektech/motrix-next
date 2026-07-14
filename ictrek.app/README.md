@@ -1,291 +1,55 @@
 # Motrix Next VOS 应用打包说明
 
-本目录包含 `com.ictrek.motrix-next` 的 VOS 应用打包文件。
+本目录包含 VOS app `com.ictrek.motrix-next` 的安装包模板。
 
-## 安装包内容
-
-生成结果是一个 VOS 应用安装 tar 包，始终包含：
-
-- `app.tar.gz`：VOS 元数据和 Compose 文件。
-
-在默认的 `local` 镜像来源模式下，还会包含：
-
-- `assets/<arch>/`：`motrix` 的本地 `docker-archive` 镜像文件。
-
-Motrix Next 通过单个 Docker 容器运行。该镜像同时包含构建后的 Web 静态资源、Node Web 服务和 aria2 下载进程。VOS 安装包不会把前端源码作为运行时代码交付。
+## 打包
 
 ```bash
 cd apps/motrix-next
-
-# 先构建并推送镜像，再打包。
-./build_image.sh arm
-./ictrek.app/scripts/package.sh arm
-
-./build_image.sh amd
-./ictrek.app/scripts/package.sh amd
-
-# 构建一个小体积在线安装包。该包只包含镜像名称；
-# VOS 主机会在 docker compose up 时拉取镜像。
-./ictrek.app/scripts/package.sh amd --image-source pull
+./ictrek.app/scripts/package.sh
 ```
 
-打包脚本优先读取 `~/.feishu.components.json` 中的只读飞书凭据；文件不存在或组件版本读取失败时回退到 `~/.feishu.json`。只有默认 `local` 模式需要 Docker，因为该模式会通过 `docker save` 导出镜像归档。
-
-脚本会从飞书发布表读取 `motrix` 组件的最新标签。
-
-| profile | 飞书 sheet | 资源架构 |
-|---------|------------|----------|
-| `arm` | `ARM_without_cuda` | `arm64` |
-| `amd` | `AMD_with_cuda` | `amd64` |
-
-## 镜像来源
-
-`--image-source local` 是默认且适合发布的模式。它会拉取选定镜像，将镜像导出为 `dist/assets/<arch>/` 下的 `docker-archive` 资源，写入 `manifest.assets`，并让 VOS 在安装阶段通过 `docker load` 导入镜像。
-
-`--image-source pull` 会生成更小的安装包。它会把完整镜像名称写入 `docker-compose.yml`，省略 `manifest.assets`，并设置 `pull_policy: always`，让 VOS 主机在 `docker compose up` 时拉取镜像。主机必须能访问镜像仓库，并且 VOS 使用的 Docker daemon 用户必须已经登录 SWR。当前 VOS 主机上通常意味着 root 的 Docker 配置需要包含 `swr.cn-southwest-2.myhuaweicloud.com` 的登录信息。
-
-local 模式生成：
+脚本只生成一个 pull 模式安装包：
 
 ```text
-dist/motrix-next_<version>_<profile>.tar
+ictrek.app/dist/motrix-next_<version>_pull.tar
 ```
 
-pull 模式生成：
+安装包内只有一个 `docker-compose.yml`，其中包含 `arm` 和 `amd` 两个 Docker Compose profile。打包脚本会优先读取 `~/.feishu.components.json`，若文件不存在或读取失败则回退到 `~/.feishu.json`，分别从对应 sheet 读取 `motrix` 镜像最新版本，并写入包内 `.env`。
 
-```text
-dist/motrix-next_<version>_<profile>_pull.tar
-```
+不再通过 `arm` / `amd` 参数生成多个 tar 包，也不再生成包含 `assets/` 镜像归档的 local 包。
 
-`dist/` 目录和生成的 tar 文件已被忽略，不应提交。
+## Profiles
 
-## 版本号
+| profile | 飞书 sheet | 适用平台 |
+| --- | --- | --- |
+| `arm` | `ARM_without_cuda` | ARM / L4T 类设备 |
+| `amd` | `AMD_with_cuda` | x86_64 / AMD64 类设备 |
 
-`VERSION` 保存最近一次成功打包版本。打包脚本每次成功后自动自增 patch 版本：
-
-```text
-0.0.1 -> 0.0.2 -> ... -> 0.0.999 -> 0.1.0
-```
-
-生成的安装包文件名包含自增版本和 profile，例如：
-
-```text
-motrix-next_0.0.2_amd.tar
-motrix-next_0.0.2_amd_pull.tar
-```
-
-VOS 要求 `manifest.yml.version` 使用 SemVer，因此 manifest 中直接使用该自增版本，例如 `0.0.2`。
-
-## 本地 VOS 安装测试
-
-在 `tc192`、`tc232` 等 VOS 开发主机上，将生成的 tar 拷贝到共享用户数据路径，然后从 `vos-platform-backend` 中安装。
-
-以 `tc232` 的 `app_space` volume 为例：
+安装时由 VOS 指定其中一个 profile。手动验证 Compose 文件时也必须只启用一个 profile：
 
 ```bash
-docker exec -it vos-platform-backend bash
+docker compose --profile amd config
+docker compose --profile arm config
+```
 
-cd /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp
+## 安装
 
+```bash
 vos-platform-cli app install-local \
-  --temp-dir /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp/ \
+  --temp-dir ./tmp-motrix-next-install \
   --admin-password Aa123456 \
-  --package-path ./motrix-next_0.0.2_amd.tar \
+  --package-path ./motrix-next_<version>_pull.tar \
   --volume app_space \
   -v
 ```
 
-安装后，应用应可通过 VOS 网关访问：
+VOS 主机必须能访问并拉取 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/motrix` 镜像。安装后入口为：
 
 ```text
 https://<vos-host>:1180/app/com.ictrek.motrix-next/
 ```
 
-不带尾斜杠的地址也可访问，Traefik 会重定向到带尾斜杠地址：
+## 路由
 
-```text
-https://<vos-host>:1180/app/com.ictrek.motrix-next
-```
-
-## VOS 网络
-
-生成的 Compose 文件会加入已有的外部 Docker 网络 `vos_default`。
-
-Motrix Next 只有一个服务：
-
-- `motrix-next`
-
-应用不暴露宿主机端口。VOS 通过 Traefik 将 `/app/com.ictrek.motrix-next/` 转发到容器内的 `47000` 端口。
-
-## 存储映射
-
-VOS 会为应用设置 `${VOS_APP_STORAGE_PATH}`。Motrix Next 的 Compose 文件将下载目录映射为：
-
-```text
-${VOS_APP_STORAGE_PATH}/downloads:/downloads
-```
-
-容器内路径：
-
-```text
-/downloads
-```
-
-下载文件和 aria2 任务恢复文件都位于该挂载目录下：
-
-```text
-/downloads/.aria2/aria2.session
-```
-
-因此，只要 VOS 应用存储目录不被删除，下载文件以及 aria2 已完成、停止、未完成任务的恢复状态都会在容器重启和应用重启后保留。浏览器侧的 UI 偏好仍由浏览器本地存储维护。
-
-在 `tc232` 上，`app_space` 对应的宿主机路径示例为：
-
-```text
-/share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps/com.ictrek.motrix-next/downloads
-```
-
-# Motrix Next VOS Package
-
-This directory contains VOS app packaging files for `com.ictrek.motrix-next`.
-
-## Package
-
-The package is a VOS install tar. It always contains:
-
-- `app.tar.gz`: VOS metadata and Compose files.
-
-In the default `local` image source mode, it also contains:
-
-- `assets/<arch>/`: the local `docker-archive` image file for `motrix`.
-
-Motrix Next runs as a single Docker container. The image contains the built web assets, the Node web service, and the aria2 download process. Frontend source code is not shipped as runtime code in the VOS package.
-
-```bash
-cd apps/motrix-next
-
-# Build and push the image first, then build the package.
-./build_image.sh arm
-./ictrek.app/scripts/package.sh arm
-
-./build_image.sh amd
-./ictrek.app/scripts/package.sh amd
-
-# Build a small online-install package. The package contains image names only;
-# the VOS host pulls images during docker compose up.
-./ictrek.app/scripts/package.sh amd --image-source pull
-```
-
-The package script first reads read-only Feishu credentials from `~/.feishu.components.json`; if the file is missing or component version lookup fails, it falls back to `~/.feishu.json`. Docker is required only for the default `local` mode because that mode exports image archives with `docker save`.
-
-The script reads the latest component tag for `motrix` from the Feishu release spreadsheet.
-
-| profile | Feishu sheet | Asset arch |
-|---------|--------------|------------|
-| `arm` | `ARM_without_cuda` | `arm64` |
-| `amd` | `AMD_with_cuda` | `amd64` |
-
-## Image Source
-
-`--image-source local` is the default and release-safe mode. It pulls the selected image, exports it as a `docker-archive` asset under `dist/assets/<arch>/`, writes `manifest.assets`, and lets VOS import it with `docker load` during installation.
-
-`--image-source pull` creates a much smaller package. It writes the full image name into `docker-compose.yml`, omits `manifest.assets`, and sets `pull_policy: always` so the VOS host pulls the image during `docker compose up`. The host must have network access to the registry and the Docker daemon user used by VOS must already be logged in to SWR. On current VOS hosts this usually means root's Docker config must include `swr.cn-southwest-2.myhuaweicloud.com`.
-
-Local mode creates:
-
-```text
-dist/motrix-next_<version>_<profile>.tar
-```
-
-Pull mode creates:
-
-```text
-dist/motrix-next_<version>_<profile>_pull.tar
-```
-
-The `dist/` directory and generated tar files are ignored and must not be committed.
-
-## Version
-
-`VERSION` stores the last successful package version. The package script increments the patch version after every successful build:
-
-```text
-0.0.1 -> 0.0.2 -> ... -> 0.0.999 -> 0.1.0
-```
-
-The package filename contains the incremented version and profile, for example:
-
-```text
-motrix-next_0.0.2_amd.tar
-motrix-next_0.0.2_amd_pull.tar
-```
-
-VOS requires `manifest.yml.version` to be SemVer, so the manifest uses the same incremented version directly, for example `0.0.2`.
-
-## Local VOS Install Test
-
-On a VOS development host such as `tc192` or `tc232`, copy the generated tar into the shared user data path and install it from `vos-platform-backend`.
-
-For example, on `tc232` with the `app_space` volume:
-
-```bash
-docker exec -it vos-platform-backend bash
-
-cd /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp
-
-vos-platform-cli app install-local \
-  --temp-dir /share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps_tmp/ \
-  --admin-password Aa123456 \
-  --package-path ./motrix-next_0.0.2_amd.tar \
-  --volume app_space \
-  -v
-```
-
-After installation, the app should be available through the VOS gateway at:
-
-```text
-https://<vos-host>:1180/app/com.ictrek.motrix-next/
-```
-
-The no-trailing-slash URL is also supported. Traefik redirects it to the trailing-slash URL:
-
-```text
-https://<vos-host>:1180/app/com.ictrek.motrix-next
-```
-
-## VOS Network
-
-The generated Compose file joins the existing external Docker network `vos_default`.
-
-Motrix Next has one service:
-
-- `motrix-next`
-
-The app does not expose a host port. VOS routes `/app/com.ictrek.motrix-next/` through Traefik to port `47000` inside the container.
-
-## Storage Mapping
-
-VOS sets `${VOS_APP_STORAGE_PATH}` for the app. Motrix Next maps the download directory as:
-
-```text
-${VOS_APP_STORAGE_PATH}/downloads:/downloads
-```
-
-Container path:
-
-```text
-/downloads
-```
-
-Downloaded files and the aria2 session file are both inside this mounted directory:
-
-```text
-/downloads/.aria2/aria2.session
-```
-
-As long as the VOS app storage directory is not deleted, downloaded files and aria2's completed, stopped, and unfinished task restore state survive container and app restarts. Browser-side UI preferences are still stored by the browser.
-
-On `tc232`, the `app_space` host path is currently:
-
-```text
-/share/032bb03e-628e-4e9e-96ae-440dea8263d3/apps/com.ictrek.motrix-next/downloads
-```
+`routers.yml` 使用完整的 group/page 结构，并保留 `keep-alive: true`。新增或修改入口时必须同步检查 `iframe-src` 指向 `/app/com.ictrek.motrix-next/`。
