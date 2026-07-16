@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import type { HistoryRecord } from '@shared/types'
+import type { Aria2Task, HistoryRecord } from '@shared/types'
 
 // ── Mock: in-memory SQLite substitute ────────────────────────────────
 let rows: HistoryRecord[] = []
@@ -111,6 +111,28 @@ function mockSelect(query: string, params: unknown[]): unknown[] {
     return [...birthRows]
   }
 
+  if (q.includes('COUNT(DISTINCT GID)')) {
+    const values = new Set(params.map(String))
+    const matchedGids = new Set<string>()
+    for (const row of rows) {
+      let meta: Record<string, unknown> = {}
+      try {
+        meta = row.meta ? (JSON.parse(row.meta) as Record<string, unknown>) : {}
+      } catch {
+        meta = {}
+      }
+      if (
+        values.has(row.gid) ||
+        (typeof meta.infoHash === 'string' && values.has(meta.infoHash)) ||
+        (typeof meta.ed2kHash === 'string' && values.has(meta.ed2kHash)) ||
+        (typeof meta.ed2kLink === 'string' && values.has(meta.ed2kLink))
+      ) {
+        matchedGids.add(row.gid)
+      }
+    }
+    return [{ count: matchedGids.size }]
+  }
+
   if (q.includes('COUNT(*)')) {
     if (q.includes('WHERE STATUS')) {
       const status = params[0] as string
@@ -207,6 +229,22 @@ function makeRecord(overrides: Partial<HistoryRecord> = {}): HistoryRecord {
   }
 }
 
+function makeTask(overrides: Partial<Aria2Task> = {}): Aria2Task {
+  return {
+    gid: 'task-gid',
+    status: 'active',
+    totalLength: '1',
+    completedLength: '1',
+    uploadLength: '0',
+    downloadSpeed: '0',
+    uploadSpeed: '0',
+    connections: '0',
+    dir: '/downloads',
+    files: [],
+    ...overrides,
+  }
+}
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe('HistoryStore', () => {
@@ -269,6 +307,36 @@ describe('HistoryStore', () => {
       const results = await store.getRecords()
       expect(results).toHaveLength(1)
       expect(results[0].gid).toBe('min1')
+    })
+  })
+
+  describe('countRecordsMatchingTaskIdentities', () => {
+    it('counts history records that match live task identities without double-counting', async () => {
+      rows = [
+        makeRecord({ gid: 'same-gid' }),
+        makeRecord({
+          gid: 'old-bt-gid',
+          task_type: 'bt',
+          meta: JSON.stringify({ infoHash: 'bt-hash' }),
+        }),
+        makeRecord({
+          gid: 'old-ed2k-gid',
+          task_type: 'ed2k',
+          meta: JSON.stringify({ ed2kHash: 'ed2k-hash', ed2kLink: 'ed2k://|file|demo|1|hash|/' }),
+        }),
+        makeRecord({ gid: 'unrelated' }),
+      ]
+
+      const liveTasks = [
+        makeTask({ gid: 'same-gid' }),
+        makeTask({ gid: 'new-bt-gid', bittorrent: { info: { name: 'bt' } }, infoHash: 'bt-hash' }),
+        makeTask({
+          gid: 'new-ed2k-gid',
+          ed2k: { hash: 'ed2k-hash', ed2kLink: 'ed2k://|file|demo|1|hash|/' },
+        }),
+      ]
+
+      await expect(store.countRecordsMatchingTaskIdentities(liveTasks)).resolves.toBe(3)
     })
   })
 

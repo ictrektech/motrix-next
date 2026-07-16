@@ -3,6 +3,9 @@
 /** Task lifecycle status as reported by aria2 RPC. */
 export type TaskStatus = 'active' | 'waiting' | 'paused' | 'error' | 'complete' | 'removed'
 
+export type AppLogLevel = 'error' | 'warn' | 'info' | 'debug'
+export type Aria2LogLevel = AppLogLevel | 'trace'
+
 /** URI entry within an aria2 file descriptor. */
 export interface Aria2FileUri {
   uri: string
@@ -141,6 +144,7 @@ export interface Aria2GlobalStat {
   numActive: number
   numWaiting: number
   numStopped: number
+  numStoppedTotal: number
 }
 
 /** Engine version information returned by aria2.getVersion. */
@@ -162,7 +166,7 @@ export interface Aria2RawGlobalStat {
 
 /** HTTP proxy configuration for download tasks and scoped app requests. */
 export interface ProxyConfig {
-  mode?: import('@shared/utils/proxyPolicy').EngineProxyMode
+  mode?: import('@shared/utils/proxy').EngineProxyMode
   server: string
   username?: string
   password?: string
@@ -262,7 +266,10 @@ export interface AppConfig {
   dbSchemaVersion: number
   theme: 'auto' | 'light' | 'dark'
   colorScheme: string
+  customColorScheme: string
   taskCardMode: 'full' | 'compact'
+  taskListWatermark: boolean
+  sidebarTaskCounts: boolean
   taskPageSize: number
   locale: string
   dir: string
@@ -307,6 +314,10 @@ export interface AppConfig {
   lightweightMode: boolean
   btTrackerAutoSync: boolean
   btTrackerSyncIntervalHours: number
+  btPeerBlocklistEnabled: boolean
+  btPeerBlocklistUrl: string
+  btPeerBlocklistAutoSync: boolean
+  btPeerBlocklistSyncIntervalHours: number
   keepSharing: boolean
   keepWindowState: boolean
 
@@ -322,8 +333,8 @@ export interface AppConfig {
   showProgressBar: boolean
   traySpeedometer: boolean
   dockBadgeSpeed: boolean
-  logLevel: string
-  aria2LogLevel: string
+  logLevel: AppLogLevel
+  aria2LogLevel: Aria2LogLevel
   engineBinPath: string
   /** Directory for internal temporary engine files. Empty means the OS temporary directory. */
   tempFilesDir: string
@@ -495,6 +506,8 @@ export interface TauriUpdate {
   date: string | null
   channel: ResolvedUpdateChannel
   requestedChannel: UpdateChannel
+  /** Computed by Rust via the semver crate — true for cross-channel downgrades. */
+  isRollback: boolean
 }
 
 // ── Batch Add Task ──────────────────────────────────────────────────
@@ -553,6 +566,8 @@ export interface HistoryMeta {
   magnetLink?: string
   /** Engine-serialized ED2K file link. */
   ed2kLink?: string
+  /** ED2K file hash — used to deduplicate shared-upload records across sessions. */
+  ed2kHash?: string
   /** BT announce tiers — used to restore tracker-aware magnet restart links. */
   announceList?: string[][]
   /** Complete file list with all URIs — present when files.length > 1. */

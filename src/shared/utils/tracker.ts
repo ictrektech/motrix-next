@@ -4,7 +4,7 @@ import type { ProxyConfig } from '@shared/types'
 import { invoke } from '@tauri-apps/api/core'
 import { MAX_BT_TRACKER_LENGTH, PROXY_SCOPES } from '@shared/constants'
 import { logger } from '@shared/logger'
-import { resolveAppProxyUrl } from '@shared/utils/appProxyPolicy'
+import { resolveAppProxyUrl } from '@shared/utils/proxy'
 
 // ── Types ───────────────────────────────────────────────────────
 

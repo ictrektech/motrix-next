@@ -35,7 +35,7 @@ import { useEd2kSearchSession } from '@/composables/useEd2kSearchSession'
 import { BT_LISTEN_PORT, DHT_LISTEN_PORT, ENGINE_RPC_PORT, PROXY_SCOPES } from '@shared/constants'
 import { diffConfig, checkIsNeedRestart } from '@shared/utils/config'
 import { bytesToSize } from '@shared/utils'
-import { resolveAppProxyUrl } from '@shared/utils/appProxyPolicy'
+import { resolveAppProxyUrl } from '@shared/utils/proxy'
 import { getErrorMessage } from '@shared/utils/errorMessage'
 import { logger } from '@shared/logger'
 import type { Ed2kSearchResult } from '@shared/types'
@@ -313,148 +313,150 @@ onMounted(() => {
 
 <template>
   <div class="preference-form-wrapper">
-    <NForm label-placement="left" label-align="left" label-width="260px" size="small" class="form-preference">
-      <NDivider title-placement="left">{{ t('preferences.ed2k-search') }}</NDivider>
-      <NFormItem :label="t('preferences.ed2k-search-keyword')">
-        <NInput v-model:value="searchKeyword" :disabled="searchActive" @keyup.enter="handleSearch" />
-      </NFormItem>
-      <NFormItem label=" ">
-        <div class="ed2k-search-actions">
-          <NButton
-            class="ed2k-search-button"
-            :class="{ 'ed2k-search-button--active': searchActive }"
-            type="primary"
-            :disabled="searchState === 'cancelling'"
-            @click="handleSearch"
-          >
-            <template #icon>
-              <span class="ed2k-search-icon-stack" aria-hidden="true">
-                <Transition name="ed2k-search-icon">
-                  <span v-if="searchActive" class="ed2k-search-icon-layer">
-                    <span class="ed2k-search-spinner" />
-                  </span>
-                </Transition>
-                <Transition name="ed2k-search-icon">
-                  <span v-if="!searchActive" class="ed2k-search-icon-layer">
-                    <NIcon><SearchOutline /></NIcon>
-                  </span>
-                </Transition>
-              </span>
-            </template>
-            <Transition name="ed2k-search-label" mode="out-in">
-              <span :key="searchButtonText">{{ searchButtonText }}</span>
+    <div class="preference-form-scroll">
+      <NForm label-placement="left" label-align="left" label-width="260px" size="small" class="form-preference">
+        <NDivider title-placement="left">{{ t('preferences.ed2k-search') }}</NDivider>
+        <NFormItem :label="t('preferences.ed2k-search-keyword')">
+          <NInput v-model:value="searchKeyword" :disabled="searchActive" @keyup.enter="handleSearch" />
+        </NFormItem>
+        <NFormItem label=" ">
+          <div class="ed2k-search-actions">
+            <NButton
+              class="ed2k-search-button"
+              :class="{ 'ed2k-search-button--active': searchActive }"
+              type="primary"
+              :disabled="searchState === 'cancelling'"
+              @click="handleSearch"
+            >
+              <template #icon>
+                <span class="ed2k-search-icon-stack" aria-hidden="true">
+                  <Transition name="ed2k-search-icon">
+                    <span v-if="searchActive" class="ed2k-search-icon-layer">
+                      <span class="ed2k-search-spinner" />
+                    </span>
+                  </Transition>
+                  <Transition name="ed2k-search-icon">
+                    <span v-if="!searchActive" class="ed2k-search-icon-layer">
+                      <NIcon><SearchOutline /></NIcon>
+                    </span>
+                  </Transition>
+                </span>
+              </template>
+              <Transition name="ed2k-search-label" mode="out-in">
+                <span :key="searchButtonText">{{ searchButtonText }}</span>
+              </Transition>
+            </NButton>
+            <Transition name="ed2k-search-status" mode="out-in">
+              <NText :key="searchState" depth="3" class="ed2k-search-status">{{ searchStatusText }}</NText>
             </Transition>
-          </NButton>
-          <Transition name="ed2k-search-status" mode="out-in">
-            <NText :key="searchState" depth="3" class="ed2k-search-status">{{ searchStatusText }}</NText>
-          </Transition>
-        </div>
-      </NFormItem>
-      <NFormItem :label="t('preferences.ed2k-search-type')">
-        <NSelect v-model:value="searchFileType" :options="fileTypeOptions" class="pref-control-auto" />
-      </NFormItem>
-      <NFormItem :label="t('preferences.ed2k-search-min-sources')">
-        <NInputNumber v-model:value="searchMinSources" :min="1" :max="9999" class="pref-port" />
-      </NFormItem>
-      <NFormItem :label="t('preferences.ed2k-search-timeout')">
-        <NInputNumber v-model:value="form.ed2kSearchTimeout" :min="10" :max="600" class="pref-port" />
-        <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
-      </NFormItem>
-      <NFormItem :show-label="false">
-        <NDataTable
-          class="search-results"
-          size="small"
-          :columns="resultColumns"
-          :data="searchResults"
-          :bordered="true"
-          :pagination="{ pageSize: 8 }"
-        />
-      </NFormItem>
-
-      <NDivider title-placement="left">{{ t('preferences.ed2k-settings') }}</NDivider>
-      <NFormItem :label="t('preferences.ed2k-listen-port')">
-        <NInputGroup>
-          <NInputNumber v-model:value="form.ed2kListenPort" :min="0" :max="65535" class="pref-port" />
-          <NButton secondary class="pref-action-button pref-action-button--compact" @click="onPortDice">
-            <template #icon>
-              <NIcon><DiceOutline /></NIcon>
-            </template>
-            {{ t('preferences.ed2k-random-port') }}
-          </NButton>
-        </NInputGroup>
-      </NFormItem>
-      <NFormItem :label="t('preferences.ed2k-udp-listen-port')">
-        <NInputGroup>
-          <NInputNumber v-model:value="form.ed2kUdpListenPort" :min="0" :max="65535" class="pref-port" />
-          <NButton secondary class="pref-action-button pref-action-button--compact" @click="onUdpPortDice">
-            <template #icon>
-              <NIcon><DiceOutline /></NIcon>
-            </template>
-            {{ t('preferences.ed2k-random-port') }}
-          </NButton>
-        </NInputGroup>
-      </NFormItem>
-      <NFormItem :label="t('preferences.ed2k-upload-slots')">
-        <NInputNumber v-model:value="form.ed2kUploadSlots" :min="1" :max="100" class="pref-port" />
-      </NFormItem>
-
-      <NDivider title-placement="left">{{ t('preferences.ed2k-bootstrap') }}</NDivider>
-      <NFormItem>
-        <template #label>
-          <PreferenceHintLabel
-            :label="t('preferences.ed2k-server-met-url')"
-            :hint="t('preferences.ed2k-server-met-hint')"
+          </div>
+        </NFormItem>
+        <NFormItem :label="t('preferences.ed2k-search-type')">
+          <NSelect v-model:value="searchFileType" :options="fileTypeOptions" class="pref-control-auto" />
+        </NFormItem>
+        <NFormItem :label="t('preferences.ed2k-search-min-sources')">
+          <NInputNumber v-model:value="searchMinSources" :min="1" :max="9999" class="pref-port" />
+        </NFormItem>
+        <NFormItem :label="t('preferences.ed2k-search-timeout')">
+          <NInputNumber v-model:value="form.ed2kSearchTimeout" :min="10" :max="600" class="pref-port" />
+          <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
+        </NFormItem>
+        <NFormItem :show-label="false">
+          <NDataTable
+            class="search-results"
+            size="small"
+            :columns="resultColumns"
+            :data="searchResults"
+            :bordered="true"
+            :pagination="{ pageSize: 8 }"
           />
-        </template>
-        <NInput v-model:value="form.ed2kServerMetUrl" />
-      </NFormItem>
-      <NFormItem>
-        <template #label>
-          <PreferenceHintLabel
-            :label="t('preferences.ed2k-nodes-dat-url')"
-            :hint="t('preferences.ed2k-nodes-dat-hint')"
+        </NFormItem>
+
+        <NDivider title-placement="left">{{ t('preferences.ed2k-settings') }}</NDivider>
+        <NFormItem :label="t('preferences.ed2k-listen-port')">
+          <NInputGroup>
+            <NInputNumber v-model:value="form.ed2kListenPort" :min="0" :max="65535" class="pref-port" />
+            <NButton secondary class="pref-action-button pref-action-button--compact" @click="onPortDice">
+              <template #icon>
+                <NIcon><DiceOutline /></NIcon>
+              </template>
+              {{ t('preferences.ed2k-random-port') }}
+            </NButton>
+          </NInputGroup>
+        </NFormItem>
+        <NFormItem :label="t('preferences.ed2k-udp-listen-port')">
+          <NInputGroup>
+            <NInputNumber v-model:value="form.ed2kUdpListenPort" :min="0" :max="65535" class="pref-port" />
+            <NButton secondary class="pref-action-button pref-action-button--compact" @click="onUdpPortDice">
+              <template #icon>
+                <NIcon><DiceOutline /></NIcon>
+              </template>
+              {{ t('preferences.ed2k-random-port') }}
+            </NButton>
+          </NInputGroup>
+        </NFormItem>
+        <NFormItem :label="t('preferences.ed2k-upload-slots')">
+          <NInputNumber v-model:value="form.ed2kUploadSlots" :min="1" :max="100" class="pref-port" />
+        </NFormItem>
+
+        <NDivider title-placement="left">{{ t('preferences.ed2k-bootstrap') }}</NDivider>
+        <NFormItem>
+          <template #label>
+            <PreferenceHintLabel
+              :label="t('preferences.ed2k-server-met-url')"
+              :hint="t('preferences.ed2k-server-met-hint')"
+            />
+          </template>
+          <NInput v-model:value="form.ed2kServerMetUrl" />
+        </NFormItem>
+        <NFormItem>
+          <template #label>
+            <PreferenceHintLabel
+              :label="t('preferences.ed2k-nodes-dat-url')"
+              :hint="t('preferences.ed2k-nodes-dat-hint')"
+            />
+          </template>
+          <NInput v-model:value="form.ed2kNodesDatUrl" />
+        </NFormItem>
+        <NFormItem :label="t('preferences.ed2k-server')">
+          <NInput
+            v-model:value="form.ed2kServer"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 5 }"
+            :placeholder="t('preferences.ed2k-server-placeholder')"
           />
-        </template>
-        <NInput v-model:value="form.ed2kNodesDatUrl" />
-      </NFormItem>
-      <NFormItem :label="t('preferences.ed2k-server')">
-        <NInput
-          v-model:value="form.ed2kServer"
-          type="textarea"
-          :autosize="{ minRows: 1, maxRows: 5 }"
-          :placeholder="t('preferences.ed2k-server-placeholder')"
-        />
-      </NFormItem>
-      <NFormItem :label="t('preferences.auto-sync')">
-        <NSwitch v-model:value="form.ed2kBootstrapAutoSync" />
-      </NFormItem>
-      <NFormItem v-if="form.ed2kBootstrapAutoSync" :label="t('preferences.sync-frequency')">
-        <NSelect
-          v-model:value="form.ed2kBootstrapSyncIntervalHours"
-          :options="syncIntervalOptions"
-          class="pref-control-auto"
-        />
-      </NFormItem>
-      <NFormItem label=" ">
-        <div class="pref-inline-row">
-          <NButton
-            class="pref-action-button ed2k-bootstrap-sync-button"
-            :loading="bootstrapSyncing"
-            type="primary"
-            secondary
-            @click="handleSyncBootstrapFiles"
-          >
-            <template #icon>
-              <NIcon><RefreshOutline /></NIcon>
-            </template>
-            {{ t('preferences.ed2k-bootstrap-sync') }}
-          </NButton>
-          <NText depth="3" class="pref-inline-row__meta">
-            {{ t('preferences.last-sync-time') }} {{ bootstrapLastSyncText }}
-          </NText>
-        </div>
-      </NFormItem>
-    </NForm>
+        </NFormItem>
+        <NFormItem :label="t('preferences.auto-sync')">
+          <NSwitch v-model:value="form.ed2kBootstrapAutoSync" />
+        </NFormItem>
+        <NFormItem v-if="form.ed2kBootstrapAutoSync" :label="t('preferences.sync-frequency')">
+          <NSelect
+            v-model:value="form.ed2kBootstrapSyncIntervalHours"
+            :options="syncIntervalOptions"
+            class="pref-control-auto"
+          />
+        </NFormItem>
+        <NFormItem label=" ">
+          <div class="pref-action-stack">
+            <NButton
+              class="pref-action-button ed2k-bootstrap-sync-button"
+              :loading="bootstrapSyncing"
+              type="primary"
+              secondary
+              @click="handleSyncBootstrapFiles"
+            >
+              <template #icon>
+                <NIcon><RefreshOutline /></NIcon>
+              </template>
+              {{ t('preferences.ed2k-bootstrap-sync') }}
+            </NButton>
+            <NText depth="3" class="pref-inline-row__meta">
+              {{ t('preferences.last-sync-time') }} {{ bootstrapLastSyncText }}
+            </NText>
+          </div>
+        </NFormItem>
+      </NForm>
+    </div>
     <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />
   </div>
 </template>

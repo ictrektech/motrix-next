@@ -28,6 +28,25 @@ vi.mock('naive-ui', () => ({
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showAddTaskDialog: showAddTaskDialogMock,
+    stat: {
+      numActive: 2,
+      numWaiting: 1,
+    },
+  }),
+}))
+
+vi.mock('@/stores/history', () => ({
+  useHistoryStore: () => ({
+    recordTotal: 5,
+    refreshRecordTotal: vi.fn().mockResolvedValue(5),
+  }),
+}))
+
+vi.mock('@/stores/preference', () => ({
+  usePreferenceStore: () => ({
+    config: {
+      sidebarTaskCounts: true,
+    },
   }),
 }))
 

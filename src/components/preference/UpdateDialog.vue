@@ -29,7 +29,6 @@ import {
   getActionTarget,
   resolvePhaseAfterDownload,
   shouldAllowUpdateDialogClose,
-  isUpdateRollback,
   calcProgressPercent,
   bytesToMB,
   getUpdateProxy as resolveProxy,
@@ -43,6 +42,8 @@ interface UpdateMetadata {
   date: string | null
   channel: ResolvedUpdateChannel
   requestedChannel: UpdateChannel
+  /** Computed by Rust via the semver crate — true for cross-channel downgrades. */
+  isRollback: boolean
 }
 
 interface UpdateProgressStarted {
@@ -96,8 +97,8 @@ const channelTagType = computed(() => {
 
 const progressPercent = computed(() => calcProgressPercent(downloadReceived.value, downloadTotal.value))
 
-// ── Version direction detection ──────────────────────────────────────
-const isRollback = computed(() => isUpdateRollback(currentVersion.value, version.value))
+// ── Version direction detection (authoritative comparison done in Rust) ──
+const isRollback = ref(false)
 
 // ── Action button state machine ──────────────────────────────────────
 const actionDisabled = computed(() => isActionDisabled(phase.value))
@@ -143,6 +144,7 @@ async function open(channel?: string) {
       releaseNotes.value = update.body || ''
       activeChannel.value = update.channel
       requestedChannel.value = update.requestedChannel
+      isRollback.value = update.isRollback
       phase.value = 'available'
       logger.info(
         'Updater',

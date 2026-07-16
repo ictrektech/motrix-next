@@ -19,7 +19,6 @@ import { calcColumnWidth } from '@shared/utils/calcColumnWidth'
 import { resolveUserVisibleDownloadDir } from '@shared/utils/userVisibleDirectory'
 import { buildSettingsBackup, parseSettingsBackup } from '@shared/utils/settingsBackup'
 import { buildSystemConfigFromAppConfig } from '@shared/utils/systemConfig'
-import { useIpc } from '@/composables/useIpc'
 import { useEngineRestart } from '@/composables/useEngineRestart'
 import { ENGINE_RPC_PORT } from '@shared/constants'
 import type { AppConfig, HistoryRecord } from '@shared/types'
@@ -228,8 +227,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
             positiveText: t('preferences.restart-now'),
             negativeText: t('app.cancel'),
             onPositiveClick: async () => {
-              const { stopEngine } = useIpc()
-              await stopEngine()
+              await invoke('stop_engine_command')
               relaunch()
             },
           })
@@ -247,8 +245,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
       onPositiveClick: async () => {
         try {
           await invoke('factory_reset')
-          const { stopEngine } = useIpc()
-          await stopEngine()
+          await invoke('stop_engine_command')
           relaunch()
         } catch (e) {
           logger.error('Advanced.factoryReset', e)
@@ -421,8 +418,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
             negativeText: t('preferences.engine-restart-later'),
             maskClosable: false,
             onPositiveClick: async () => {
-              const { stopEngine } = useIpc()
-              await stopEngine()
+              await invoke('stop_engine_command')
               await relaunch()
             },
           })

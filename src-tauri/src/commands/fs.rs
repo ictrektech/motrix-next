@@ -1,40 +1,17 @@
 use crate::engine::{valid_aria2_log_level, DEFAULT_ARIA2_LOG_LEVEL};
 use crate::error::AppError;
+use crate::log_policy::{
+    is_managed_active_log_file, remove_legacy_log_files, ARIA2_LOG_FILE, MOTRIX_LOG_FILE,
+};
 use serde_json::Value;
 use std::path::Path;
 use tauri::AppHandle;
 use tauri::Manager;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ManagedLogFileKind {
-    Active,
-    Rotated,
-}
-
-fn is_aria2_rotated_log_file(name: &str) -> bool {
-    let Some(index) = name
-        .strip_prefix("aria2-next.")
-        .and_then(|rest| rest.strip_suffix(".log"))
-    else {
-        return false;
-    };
-    !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-fn managed_log_file_kind(name: &str) -> Option<ManagedLogFileKind> {
-    if name == "motrix-next.log" || name == "aria2-next.log" {
-        Some(ManagedLogFileKind::Active)
-    } else if is_aria2_rotated_log_file(name) {
-        Some(ManagedLogFileKind::Rotated)
-    } else {
-        None
-    }
-}
-
 fn diagnostic_log_zip_path(name: &str) -> Option<String> {
-    if name == "motrix-next.log" {
+    if name == MOTRIX_LOG_FILE {
         Some(format!("motrix-next/{name}"))
-    } else if name == "aria2-next.log" || is_aria2_rotated_log_file(name) {
+    } else if name == ARIA2_LOG_FILE {
         Some(format!("aria2-next/{name}"))
     } else {
         None
@@ -158,6 +135,8 @@ fn clear_managed_log_files_in_dir(log_dir: &Path) -> Result<(), AppError> {
     if !log_dir.exists() {
         return Ok(());
     }
+    remove_legacy_log_files(log_dir)
+        .map_err(|e| AppError::Io(format!("Failed to remove legacy logs: {e}")))?;
     for entry in std::fs::read_dir(log_dir)
         .map_err(|e| AppError::Io(format!("Failed to read log dir: {e}")))?
         .flatten()
@@ -170,19 +149,12 @@ fn clear_managed_log_files_in_dir(log_dir: &Path) -> Result<(), AppError> {
         if !path.is_file() {
             continue;
         }
-        match managed_log_file_kind(name) {
-            Some(ManagedLogFileKind::Active) => {
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .truncate(true)
-                    .open(&path)
-                    .map_err(|e| AppError::Io(format!("Failed to clear active log: {e}")))?;
-            }
-            Some(ManagedLogFileKind::Rotated) => {
-                std::fs::remove_file(&path)
-                    .map_err(|e| AppError::Io(format!("Failed to remove rotated log: {e}")))?;
-            }
-            None => {}
+        if is_managed_active_log_file(name) {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(&path)
+                .map_err(|e| AppError::Io(format!("Failed to clear active log: {e}")))?;
         }
     }
     Ok(())
@@ -397,51 +369,27 @@ mod export_tests {
             diagnostic_log_zip_path("aria2-next.log"),
             Some("aria2-next/aria2-next.log".to_string())
         );
-        assert_eq!(
-            diagnostic_log_zip_path("aria2-next.1.log"),
-            Some("aria2-next/aria2-next.1.log".to_string())
-        );
-        assert_eq!(diagnostic_log_zip_path("other.log"), None);
+        assert_eq!(diagnostic_log_zip_path("aria2-next.1.log"), None);
         assert_eq!(diagnostic_log_zip_path("aria2-next.log.1"), None);
+        assert_eq!(diagnostic_log_zip_path("other.log"), None);
         assert_eq!(diagnostic_log_zip_path("motrix-next.log.1"), None);
     }
 
     #[test]
-    fn managed_log_file_kind_classifies_current_log_names_only() {
-        assert_eq!(
-            managed_log_file_kind("motrix-next.log"),
-            Some(ManagedLogFileKind::Active)
-        );
-        assert_eq!(
-            managed_log_file_kind("aria2-next.log"),
-            Some(ManagedLogFileKind::Active)
-        );
-        assert_eq!(
-            managed_log_file_kind("aria2-next.1.log"),
-            Some(ManagedLogFileKind::Rotated)
-        );
-        assert_eq!(
-            managed_log_file_kind("aria2-next.20.log"),
-            Some(ManagedLogFileKind::Rotated)
-        );
-        assert_eq!(managed_log_file_kind("aria2-next.log.1"), None);
-        assert_eq!(managed_log_file_kind("motrix-next.log.1"), None);
-        assert_eq!(managed_log_file_kind("other.log"), None);
-    }
-
-    #[test]
-    fn clear_managed_log_files_truncates_active_logs_and_removes_rotated_logs() {
+    fn clear_managed_log_files_truncates_active_logs_and_removes_legacy_logs() {
         let dir = tempfile::tempdir().expect("tempdir");
         let motrix = dir.path().join("motrix-next.log");
         let aria2 = dir.path().join("aria2-next.log");
         let rotated = dir.path().join("aria2-next.1.log");
-        let legacy = dir.path().join("aria2-next.log.1");
+        let current_rotated = dir.path().join("aria2-next.log.1");
+        let motrix_rotated = dir.path().join("motrix-next.log.1");
         let other = dir.path().join("other.log");
 
         std::fs::write(&motrix, "motrix log").expect("motrix log");
         std::fs::write(&aria2, "aria2 log").expect("aria2 log");
         std::fs::write(&rotated, "rotated log").expect("rotated log");
-        std::fs::write(&legacy, "legacy log").expect("legacy log");
+        std::fs::write(&current_rotated, "rotated log").expect("current rotated log");
+        std::fs::write(&motrix_rotated, "rotated log").expect("motrix rotated log");
         std::fs::write(&other, "other log").expect("other log");
 
         clear_managed_log_files_in_dir(dir.path()).expect("clear logs");
@@ -452,10 +400,8 @@ mod export_tests {
         );
         assert_eq!(std::fs::metadata(&aria2).expect("aria2 metadata").len(), 0);
         assert!(!rotated.exists());
-        assert_eq!(
-            std::fs::read_to_string(&legacy).expect("legacy content"),
-            "legacy log"
-        );
+        assert!(!current_rotated.exists());
+        assert!(!motrix_rotated.exists());
         assert_eq!(
             std::fs::read_to_string(&other).expect("other content"),
             "other log"
@@ -480,7 +426,7 @@ mod export_tests {
 
     #[test]
     fn config_aria2_log_level_reads_current_field_only() {
-        assert_eq!(config_aria2_log_level(None), "notice");
+        assert_eq!(config_aria2_log_level(None), "info");
         assert_eq!(
             config_aria2_log_level(Some(&serde_json::json!({
                 "preferences": { "aria2LogLevel": "debug" }
@@ -489,21 +435,15 @@ mod export_tests {
         );
         assert_eq!(
             config_aria2_log_level(Some(&serde_json::json!({
-                "preferences": { "aria2LogLevel": "notice" }
-            }))),
-            "notice"
-        );
-        assert_eq!(
-            config_aria2_log_level(Some(&serde_json::json!({
                 "preferences": { "aria2LogLevel": "verbose" }
             }))),
-            "notice"
+            "info"
         );
         assert_eq!(
             config_aria2_log_level(Some(&serde_json::json!({
                 "preferences": { "aria2LogsEnabled": false }
             }))),
-            "notice"
+            "info"
         );
     }
 }

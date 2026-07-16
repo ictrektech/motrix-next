@@ -28,7 +28,6 @@ import { resolveUnresolvedItems } from '@/composables/useAddTaskFileOps'
 import { usePreferenceStore } from '@/stores/preference'
 import { useTaskStore } from '@/stores/task'
 import type {
-  Aria2RawGlobalStat,
   Aria2EngineOptions,
   BrowserRequestHeader,
   ExternalDownloadContext,
@@ -38,7 +37,7 @@ import type {
   BatchItem,
 } from '@shared/types'
 import type { AddTaskForm } from '@/composables/useAddTaskSubmit'
-import { getDefaultTaskProxyMode } from '@shared/utils/proxyPolicy'
+import { getDefaultTaskProxyMode } from '@shared/utils/proxy'
 
 /** Payload shape emitted by Rust stat_service via `stat:update`. */
 interface StatPayload {
@@ -78,6 +77,7 @@ export const useAppStore = defineStore('app', () => {
     numActive: 0,
     numWaiting: 0,
     numStopped: 0,
+    numStoppedTotal: 0,
   })
   const addTaskVisible = ref(false)
   const pendingBatch = ref<BatchItem[]>([])
@@ -158,14 +158,6 @@ export const useAppStore = defineStore('app', () => {
     if (interval.value < STAT_MAX_INTERVAL) interval.value += millisecond
   }
 
-  function decreaseInterval(millisecond = 100) {
-    if (interval.value > STAT_MIN_INTERVAL) interval.value -= millisecond
-  }
-
-  function resetInterval() {
-    interval.value = STAT_BASE_INTERVAL
-  }
-
   /**
    * Unified entry point for all external inputs.
    * Accepts pre-built BatchItems (already resolved) and appends them to
@@ -208,35 +200,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   /**
-   * One-shot initializer — called once when the engine becomes ready.
-   * Pulls initial stat values so the UI has data before the first Rust
-   * event arrives. Does NOT set tray/dock/progress — Rust handles those.
-   */
-  async function fetchGlobalStat(api: { getGlobalStat: () => Promise<Aria2RawGlobalStat> }) {
-    try {
-      const data = await api.getGlobalStat()
-      const parsed: Record<string, number> = {}
-      Object.keys(data).forEach((key) => {
-        parsed[key] = Number(data[key])
-      })
-
-      const { numActive } = parsed
-      if (numActive > 0) {
-        updateInterval(STAT_BASE_INTERVAL - STAT_PER_TASK_INTERVAL * numActive)
-      } else {
-        parsed.downloadSpeed = 0
-        increaseInterval()
-      }
-      stat.value = parsed as typeof stat.value
-    } catch (e) {
-      logger.warn('AppStore.fetchGlobalStat', (e as Error).message)
-    }
-  }
-
-  /**
    * Processes a single stat:update event payload from the Rust backend.
    * Updates reactive stat values AND the adaptive polling interval that
-   * TaskView and lifecycleService depend on.
+   * TaskView's list refresh depends on.
    */
   function handleStatEvent(payload: StatPayload) {
     const { numActive } = payload
@@ -246,6 +212,7 @@ export const useAppStore = defineStore('app', () => {
       numActive,
       numWaiting: payload.numWaiting,
       numStopped: payload.numStopped,
+      numStoppedTotal: payload.numStoppedTotal,
     }
     if (numActive > 0) {
       updateInterval(STAT_BASE_INTERVAL - STAT_PER_TASK_INTERVAL * numActive)
@@ -599,13 +566,10 @@ export const useAppStore = defineStore('app', () => {
     pendingMagnetGids,
     updateInterval,
     increaseInterval,
-    decreaseInterval,
-    resetInterval,
     enqueueBatch,
     showAddTaskDialog,
     hideAddTaskDialog,
     updateAddTaskOptions,
-    fetchGlobalStat,
     handleStatEvent,
     setupStatListener,
     fetchEngineInfo,

@@ -54,6 +54,7 @@ const tabKey = computed(() => {
 }
 .panel-body {
   flex: 1;
-  overflow-y: auto;
+  min-width: 0;
+  overflow: hidden;
 }
 </style>

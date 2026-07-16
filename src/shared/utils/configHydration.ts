@@ -1,6 +1,5 @@
 /** @fileoverview Centralized AppConfig hydration, migration, and repair. */
 import {
-  COLOR_SCHEMES,
   DEFAULT_APP_CONFIG,
   FILE_ALLOCATION_OPTIONS,
   APP_LOG_LEVELS,
@@ -8,8 +7,9 @@ import {
   PROXY_SCOPE_OPTIONS,
   UPDATE_CHANNELS,
 } from '@shared/constants'
+import { getAllowedColorSchemeIds, normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { runMigrations, type MigrationResult } from '@shared/utils/configMigration'
-import { normalizeProxyMode } from '@shared/utils/proxyPolicy'
+import { normalizeProxyMode } from '@shared/utils/proxy'
 import type { AppConfig, ClipboardConfig, PortConflictRecoveryConfig, ProxyConfig } from '@shared/types'
 import { normalizeFileCategory } from '@shared/utils/fileCategory'
 import {
@@ -80,6 +80,19 @@ function isValidPort(value: unknown): boolean {
 function normalizePositiveNumber(value: unknown, fallback: number, key: string, repairs: string[]): number {
   const number = Number(value)
   if (Number.isFinite(number) && number >= 0) return number
+  repairs.push(key)
+  return fallback
+}
+
+function normalizeHttpUrl(value: unknown, fallback: string, key: string, repairs: string[]): string {
+  if (typeof value === 'string') {
+    try {
+      const url = new URL(value.trim())
+      if (url.protocol === 'http:' || url.protocol === 'https:') return url.toString()
+    } catch {
+      // Repaired below.
+    }
+  }
   repairs.push(key)
   return fallback
 }
@@ -188,13 +201,10 @@ function normalizeTaskManualOrder(value: unknown, repairs: string[]): TaskManual
 function normalizeScalarValues(config: Record<string, unknown>, repairs: string[]): void {
   repairEnum(config, 'theme', ['auto', 'light', 'dark'] as const, DEFAULT_APP_CONFIG.theme, repairs)
   repairEnum(config, 'taskCardMode', ['full', 'compact'] as const, DEFAULT_APP_CONFIG.taskCardMode, repairs)
-  repairEnum(
-    config,
-    'colorScheme',
-    COLOR_SCHEMES.map((scheme) => scheme.id),
-    DEFAULT_APP_CONFIG.colorScheme,
-    repairs,
-  )
+  repairEnum(config, 'colorScheme', getAllowedColorSchemeIds(), DEFAULT_APP_CONFIG.colorScheme, repairs)
+  const customColorScheme = normalizeCustomColorScheme(config.customColorScheme)
+  if (config.customColorScheme !== customColorScheme) repairs.push('customColorScheme')
+  config.customColorScheme = customColorScheme
   repairEnum(config, 'updateChannel', UPDATE_CHANNELS, DEFAULT_APP_CONFIG.updateChannel, repairs)
   repairEnum(config, 'logLevel', APP_LOG_LEVELS, DEFAULT_APP_CONFIG.logLevel, repairs)
   repairEnum(config, 'aria2LogLevel', ARIA2_LOG_LEVELS, DEFAULT_APP_CONFIG.aria2LogLevel, repairs)
@@ -248,6 +258,20 @@ function normalizeScalarValues(config: Record<string, unknown>, repairs: string[
     config.btTrackerSyncIntervalHours,
     DEFAULT_APP_CONFIG.btTrackerSyncIntervalHours,
     'btTrackerSyncIntervalHours',
+    repairs,
+  )
+  config.btPeerBlocklistSyncIntervalHours = normalizeBoundedInteger(
+    config.btPeerBlocklistSyncIntervalHours,
+    DEFAULT_APP_CONFIG.btPeerBlocklistSyncIntervalHours,
+    0,
+    8760,
+    'btPeerBlocklistSyncIntervalHours',
+    repairs,
+  )
+  config.btPeerBlocklistUrl = normalizeHttpUrl(
+    config.btPeerBlocklistUrl,
+    DEFAULT_APP_CONFIG.btPeerBlocklistUrl,
+    'btPeerBlocklistUrl',
     repairs,
   )
   config.ed2kBootstrapSyncIntervalHours = normalizePositiveNumber(

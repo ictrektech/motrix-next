@@ -14,7 +14,6 @@ import {
 } from '../useGeneralPreference'
 import type { AppConfig } from '@shared/types'
 import { DEFAULT_APP_CONFIG } from '@shared/constants'
-import { userKeys } from '@shared/configKeys'
 
 // ── buildGeneralForm ────────────────────────────────────────────────
 
@@ -75,9 +74,19 @@ describe('buildGeneralForm', () => {
     expect(form.taskCardMode).toBe(DEFAULT_APP_CONFIG.taskCardMode)
   })
 
+  it('defaults taskListWatermark from DEFAULT_APP_CONFIG', () => {
+    const form = buildGeneralForm(emptyConfig)
+    expect(form.taskListWatermark).toBe(DEFAULT_APP_CONFIG.taskListWatermark)
+  })
+
   it('reads taskCardMode from config', () => {
     const form = buildGeneralForm({ taskCardMode: 'compact' } as AppConfig)
     expect(form.taskCardMode).toBe('compact')
+  })
+
+  it('reads taskListWatermark from config', () => {
+    const form = buildGeneralForm({ taskListWatermark: false } as AppConfig)
+    expect(form.taskListWatermark).toBe(false)
   })
 
   it('reads showProgressBar from config', () => {
@@ -115,10 +124,6 @@ describe('buildGeneralForm', () => {
   it('preserves every-startup autoCheckUpdateInterval from config', () => {
     const form = buildGeneralForm({ autoCheckUpdateInterval: 0 } as unknown as AppConfig)
     expect(form.autoCheckUpdateInterval).toBe(0)
-  })
-
-  it('persists autoCheckUpdateInterval as a user config key', () => {
-    expect(userKeys).toContain('auto-check-update-interval')
   })
 
   it('exposes all supported update channels', async () => {
@@ -215,15 +220,18 @@ describe('buildGeneralForm', () => {
     expect(form.lightweightMode).toBe(true)
   })
 
-  // ── Completeness: all 17 fields are present ─────────────────────
+  // ── Completeness: all 18 fields are present ─────────────────────
 
-  it('returns all 17 form fields', () => {
+  it('returns all 20 form fields', () => {
     const form = buildGeneralForm(emptyConfig)
     const keys = Object.keys(form)
     expect(keys).toContain('locale')
     expect(keys).toContain('theme')
     expect(keys).toContain('colorScheme')
+    expect(keys).toContain('customColorScheme')
     expect(keys).toContain('taskCardMode')
+    expect(keys).toContain('taskListWatermark')
+    expect(keys).toContain('sidebarTaskCounts')
     expect(keys).toContain('autoCheckUpdate')
     expect(keys).toContain('autoCheckUpdateInterval')
     expect(keys).toContain('updateChannel')
@@ -237,7 +245,7 @@ describe('buildGeneralForm', () => {
     expect(keys).toContain('hideDockOnMinimize')
     expect(keys).toContain('traySpeedometer')
     expect(keys).toContain('lightweightMode')
-    expect(keys).toHaveLength(17)
+    expect(keys).toHaveLength(20)
   })
 })
 
@@ -248,7 +256,10 @@ describe('buildGeneralSystemConfig', () => {
     locale: 'en-US',
     theme: 'auto',
     colorScheme: 'amber',
+    customColorScheme: '#737373',
     taskCardMode: 'full',
+    taskListWatermark: true,
+    sidebarTaskCounts: true,
     autoCheckUpdate: true,
     autoCheckUpdateInterval: 0,
     updateChannel: 'stable',
@@ -290,7 +301,10 @@ describe('transformGeneralForStore', () => {
     locale: 'en-US',
     theme: 'auto',
     colorScheme: 'amber',
+    customColorScheme: '#737373',
     taskCardMode: 'full',
+    taskListWatermark: true,
+    sidebarTaskCounts: true,
     autoCheckUpdate: true,
     autoCheckUpdateInterval: 0,
     updateChannel: 'stable',
@@ -311,7 +325,10 @@ describe('transformGeneralForStore', () => {
     expect(result.locale).toBe('en-US')
     expect(result.theme).toBe('auto')
     expect(result.colorScheme).toBe('amber')
+    expect(result.customColorScheme).toBe('#737373')
     expect(result.taskCardMode).toBe('full')
+    expect(result.taskListWatermark).toBe(true)
+    expect(result.sidebarTaskCounts).toBe(true)
     expect(result.autoCheckUpdate).toBe(true)
     expect(result.autoCheckUpdateInterval).toBe(0)
     expect(result.updateChannel).toBe('stable')

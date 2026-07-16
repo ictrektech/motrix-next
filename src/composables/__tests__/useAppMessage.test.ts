@@ -12,11 +12,35 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ── Mock naive-ui's useMessage before importing the composable ──────
 const destroyFn = vi.fn()
+function createMessageHandle(options?: { duration?: number; onAfterLeave?: () => void }) {
+  let closed = false
+  const close = () => {
+    if (closed) return
+    closed = true
+    options?.onAfterLeave?.()
+  }
+  setTimeout(close, options?.duration ?? 0)
+  return {
+    destroy: () => {
+      destroyFn()
+      close()
+    },
+  }
+}
+
 const mockMessageApi = {
-  success: vi.fn(() => ({ destroy: destroyFn })),
-  error: vi.fn(() => ({ destroy: destroyFn })),
-  warning: vi.fn(() => ({ destroy: destroyFn })),
-  info: vi.fn(() => ({ destroy: destroyFn })),
+  success: vi.fn((_content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) =>
+    createMessageHandle(options),
+  ),
+  error: vi.fn((_content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) =>
+    createMessageHandle(options),
+  ),
+  warning: vi.fn((_content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) =>
+    createMessageHandle(options),
+  ),
+  info: vi.fn((_content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) =>
+    createMessageHandle(options),
+  ),
 }
 
 vi.mock('naive-ui', () => ({
@@ -38,6 +62,7 @@ describe('useAppMessage', () => {
   })
 
   afterEach(() => {
+    vi.runOnlyPendingTimers()
     vi.useRealTimers()
   })
 

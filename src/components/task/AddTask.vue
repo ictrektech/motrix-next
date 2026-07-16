@@ -21,7 +21,7 @@ import {
   getDownloadProxy,
 } from '@/composables/useAddTaskSubmit'
 import type { AddTaskForm, ManualUriSubmitResult } from '@/composables/useAddTaskSubmit'
-import { isValidAria2ProxyUrl } from '@shared/utils/aria2Proxy'
+import { isValidAria2ProxyUrl } from '@shared/utils/proxy'
 import { handleTaskStart } from '@/composables/useTaskNotifyHandlers'
 import { isMagnetUri } from '@/composables/useMagnetFlow'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -32,7 +32,7 @@ import {
   getDefaultTaskProxyPassword,
   getDefaultTaskProxyServer,
   getDefaultTaskProxyUsername,
-} from '@shared/utils/proxyPolicy'
+} from '@shared/utils/proxy'
 import { resolveUserVisibleDownloadDir } from '@shared/utils/userVisibleDirectory'
 import { findMatchingUserAgentRule, resolveUserAgent } from '@shared/utils/userAgentPolicy'
 

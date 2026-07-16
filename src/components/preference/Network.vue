@@ -21,7 +21,7 @@ import {
   randomBtPort,
   randomDhtPort,
 } from '@/composables/useNetworkPreference'
-import { proxySwitchValueToMode } from '@shared/utils/proxyPolicy'
+import { proxySwitchValueToMode } from '@shared/utils/proxy'
 
 import userAgentMap from '@shared/ua'
 import { hasUnsafeHeaderChars, sanitizeHeaderValue } from '@shared/utils/headerSanitize'
@@ -270,232 +270,242 @@ onMounted(() => {
 
 <template>
   <div class="preference-form-wrapper">
-    <NForm label-placement="left" label-align="left" label-width="260px" size="small" class="form-preference">
-      <!-- User-Agent -->
-      <NDivider title-placement="left">{{ t('preferences.user-agent') }}</NDivider>
-      <NFormItem :label="t('preferences.mock-user-agent')">
-        <div class="ua-field-wrapper">
-          <NInput
-            v-model:value="form.userAgent"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-            placeholder="User-Agent"
-          />
-          <div class="ua-warn-collapse" :class="{ 'ua-warn-collapse--open': uaHasIssue }">
-            <div class="ua-warn-collapse__inner">
-              <div class="ua-warn-bar">
-                <span class="ua-warn-text">⚠ {{ t('preferences.ua-unsafe-chars-detected') }}</span>
-                <NButton size="tiny" type="primary" ghost @click="cleanUserAgent">
-                  {{ t('preferences.ua-sanitize') }}
-                </NButton>
+    <div class="preference-form-scroll">
+      <NForm label-placement="left" label-align="left" label-width="260px" size="small" class="form-preference">
+        <!-- User-Agent -->
+        <NDivider title-placement="left">{{ t('preferences.user-agent') }}</NDivider>
+        <NFormItem :label="t('preferences.mock-user-agent')">
+          <div class="ua-field-wrapper">
+            <NInput
+              v-model:value="form.userAgent"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="User-Agent"
+            />
+            <div class="ua-warn-collapse" :class="{ 'ua-warn-collapse--open': uaHasIssue }">
+              <div class="ua-warn-collapse__inner">
+                <div class="ua-warn-bar">
+                  <span class="ua-warn-text">⚠ {{ t('preferences.ua-unsafe-chars-detected') }}</span>
+                  <NButton size="tiny" type="primary" ghost @click="cleanUserAgent">
+                    {{ t('preferences.ua-sanitize') }}
+                  </NButton>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </NFormItem>
-      <NFormItem label=" ">
-        <div class="ua-preset-row">
-          <NButtonGroup size="small">
-            <NButton @click="changeUA('chrome')">Chrome</NButton>
-            <NButton @click="changeUA('edge')">Edge</NButton>
-            <NButton @click="changeUA('safari')">Safari</NButton>
-            <NButton @click="changeUA('firefox')">Firefox</NButton>
-          </NButtonGroup>
-          <NButton class="ua-reset-btn" size="small" ghost @click="form.userAgent = ''">
-            {{ t('preferences.ua-reset') }}
-          </NButton>
-        </div>
-      </NFormItem>
-      <NFormItem :label="t('preferences.ua-saved')">
-        <div class="ua-manager-entry">
-          <div class="ua-manager-entry-text">
-            <strong>{{ t('preferences.ua-manager-title') }}</strong>
-            <span>
-              {{
-                t('preferences.ua-manager-summary', {
-                  profiles: form.userAgentProfiles.length,
-                  rules: form.userAgentRules.length,
-                })
-              }}
-            </span>
+        </NFormItem>
+        <NFormItem label=" ">
+          <div class="ua-preset-row">
+            <NButtonGroup size="small">
+              <NButton @click="changeUA('chrome')">Chrome</NButton>
+              <NButton @click="changeUA('edge')">Edge</NButton>
+              <NButton @click="changeUA('safari')">Safari</NButton>
+              <NButton @click="changeUA('firefox')">Firefox</NButton>
+            </NButtonGroup>
+            <NButton class="ua-reset-btn" size="small" ghost @click="form.userAgent = ''">
+              {{ t('preferences.ua-reset') }}
+            </NButton>
           </div>
-          <NButton size="small" @click="showUserAgentManager = true">
-            {{ t('preferences.ua-manage') }}
-          </NButton>
-        </div>
-      </NFormItem>
-
-      <!-- Proxy -->
-      <NDivider title-placement="left">{{ t('preferences.proxy') }}</NDivider>
-      <NFormItem>
-        <template #label>
-          <PreferenceHintLabel :label="t('task.use-proxy')" :hint="t('preferences.proxy-request-scope-hint')" />
-        </template>
-        <NSwitch :value="form.proxy.mode !== 'direct'" @update:value="handleProxySwitch" />
-      </NFormItem>
-      <div class="proxy-collapse" :class="{ 'proxy-collapse--open': form.proxy.mode === 'manual' }">
-        <div class="proxy-collapse__inner collapse-indent">
-          <NFormItem>
-            <template #label>
-              <PreferenceHintLabel
-                :label="t('preferences.proxy-server')"
-                :hint="t('preferences.proxy-http-only-hint')"
-              />
-            </template>
-            <NInputGroup>
-              <NInput v-model:value="form.proxy.server" class="pref-control-full" placeholder="http://host:port" />
-              <NButton
-                class="pref-action-button network-proxy-detect-button"
-                :loading="detectingProxy"
-                @click="detectProxy"
-              >
-                <template #icon>
-                  <NIcon><SearchOutline /></NIcon>
-                </template>
-                {{ t('preferences.detect-system-proxy') }}
-              </NButton>
-            </NInputGroup>
-          </NFormItem>
-          <NFormItem :label="t('preferences.proxy-username')">
-            <NInput v-model:value="form.proxy.username" />
-          </NFormItem>
-          <NFormItem :label="t('preferences.proxy-password')">
-            <NInput v-model:value="form.proxy.password" type="password" show-password-on="click" />
-          </NFormItem>
-          <NFormItem :label="t('preferences.proxy-bypass')">
-            <NInput
-              v-model:value="form.proxy.bypass"
-              type="textarea"
-              :autosize="{ minRows: 2, maxRows: 3 }"
-              :placeholder="t('preferences.proxy-bypass-input-tips')"
-            />
-          </NFormItem>
-          <NFormItem :label="t('preferences.proxy-scope')">
-            <NSelect v-model:value="form.proxy.scope" :options="proxyScopeOptions" multiple class="pref-control-full" />
-          </NFormItem>
-        </div>
-      </div>
-
-      <!-- Port conflict recovery -->
-      <NDivider title-placement="left">{{ t('preferences.port-conflict-recovery') }}</NDivider>
-      <NFormItem :label="t('preferences.port-conflict-recovery-enable')">
-        <NSwitch v-model:value="form.portConflictRecovery.enabled" />
-      </NFormItem>
-      <div
-        class="port-recovery-collapse"
-        :class="{ 'port-recovery-collapse--open': form.portConflictRecovery.enabled }"
-      >
-        <div class="port-recovery-collapse__inner collapse-indent">
-          <NFormItem>
-            <template #label>
-              <PreferenceHintLabel
-                :label="t('preferences.port-conflict-recovery-range')"
-                :hint="t('preferences.port-conflict-recovery-range-hint')"
-              />
-            </template>
-            <NInputGroup>
-              <NInputNumber
-                v-model:value="form.portConflictRecovery.rangeStart"
-                :min="1024"
-                :max="65535"
-                class="pref-port"
-              />
-              <span class="port-range-separator">to</span>
-              <NInputNumber
-                v-model:value="form.portConflictRecovery.rangeEnd"
-                :min="1024"
-                :max="65535"
-                class="pref-port"
-              />
-            </NInputGroup>
-          </NFormItem>
-          <NFormItem :label="t('preferences.port-conflict-recovery-apply-to')">
-            <PreferenceCheckboxGrid v-model:value="selectedPortRecoveryTargets" :options="portRecoveryTargetOptions" />
-          </NFormItem>
-        </div>
-      </div>
-
-      <!-- Ports -->
-      <NDivider title-placement="left">{{ t('preferences.port') }}</NDivider>
-      <NFormItem label="UPnP/NAT-PMP">
-        <NSwitch v-model:value="form.enableUpnp" />
-      </NFormItem>
-      <NFormItem :label="t('preferences.bt-port')">
-        <NInputGroup>
-          <NInputNumber v-model:value="form.listenPort" :min="1024" :max="65535" class="pref-port" />
-          <NButton class="pref-icon-button" @click="onBtPortDice">
-            <template #icon>
-              <NIcon :size="14"><DiceOutline /></NIcon>
-            </template>
-          </NButton>
-        </NInputGroup>
-      </NFormItem>
-      <NFormItem :label="t('preferences.dht-port')">
-        <NInputGroup>
-          <NInputNumber v-model:value="form.dhtListenPort" :min="1024" :max="65535" class="pref-port" />
-          <NButton class="pref-icon-button" @click="onDhtPortDice">
-            <template #icon>
-              <NIcon :size="14"><DiceOutline /></NIcon>
-            </template>
-          </NButton>
-        </NInputGroup>
-      </NFormItem>
-
-      <!-- P2P Sharing -->
-      <NDivider title-placement="left">{{ t('preferences.p2p-sharing-section') }}</NDivider>
-      <NFormItem>
-        <template #label>
-          <PreferenceHintLabel
-            :label="t('preferences.sharing-mode')"
-            :hint="t('preferences.sharing-mode-scope-hint')"
-          />
-        </template>
-        <NRadioGroup v-model:value="form.sharingMode" size="small">
-          <NRadioButton value="stop-by-condition">
-            {{ t('preferences.sharing-mode-stop-by-condition') }}
-          </NRadioButton>
-          <NRadioButton value="manual-stop">{{ t('preferences.sharing-mode-manual-stop') }}</NRadioButton>
-        </NRadioGroup>
-      </NFormItem>
-      <NCollapseTransition :show="form.sharingMode === 'stop-by-condition'" class="collapse-indent">
-        <NFormItem :label="t('preferences.share-ratio')">
-          <NInputNumber v-model:value="form.shareRatio" :min="1" :max="100" :step="0.1" class="pref-number" />
         </NFormItem>
-        <NFormItem :label="t('preferences.share-time') + ' (' + t('preferences.share-time-unit') + ')'">
-          <NInputNumber v-model:value="form.shareTime" :min="60" :max="525600" class="pref-number" />
+        <NFormItem :label="t('preferences.ua-saved')">
+          <div class="ua-manager-entry">
+            <div class="ua-manager-entry-text">
+              <strong>{{ t('preferences.ua-manager-title') }}</strong>
+              <span>
+                {{
+                  t('preferences.ua-manager-summary', {
+                    profiles: form.userAgentProfiles.length,
+                    rules: form.userAgentRules.length,
+                  })
+                }}
+              </span>
+            </div>
+            <NButton size="small" @click="showUserAgentManager = true">
+              {{ t('preferences.ua-manage') }}
+            </NButton>
+          </div>
         </NFormItem>
-      </NCollapseTransition>
-      <NCollapseTransition :show="form.sharingMode === 'manual-stop'" class="collapse-indent">
+
+        <!-- Proxy -->
+        <NDivider title-placement="left">{{ t('preferences.proxy') }}</NDivider>
+        <NFormItem>
+          <template #label>
+            <PreferenceHintLabel :label="t('task.use-proxy')" :hint="t('preferences.proxy-request-scope-hint')" />
+          </template>
+          <NSwitch :value="form.proxy.mode !== 'direct'" @update:value="handleProxySwitch" />
+        </NFormItem>
+        <div class="proxy-collapse" :class="{ 'proxy-collapse--open': form.proxy.mode === 'manual' }">
+          <div class="proxy-collapse__inner collapse-indent">
+            <NFormItem>
+              <template #label>
+                <PreferenceHintLabel
+                  :label="t('preferences.proxy-server')"
+                  :hint="t('preferences.proxy-http-only-hint')"
+                />
+              </template>
+              <NInputGroup>
+                <NInput v-model:value="form.proxy.server" class="pref-control-full" placeholder="http://host:port" />
+                <NButton
+                  class="pref-action-button network-proxy-detect-button"
+                  :loading="detectingProxy"
+                  @click="detectProxy"
+                >
+                  <template #icon>
+                    <NIcon><SearchOutline /></NIcon>
+                  </template>
+                  {{ t('preferences.detect-system-proxy') }}
+                </NButton>
+              </NInputGroup>
+            </NFormItem>
+            <NFormItem :label="t('preferences.proxy-username')">
+              <NInput v-model:value="form.proxy.username" />
+            </NFormItem>
+            <NFormItem :label="t('preferences.proxy-password')">
+              <NInput v-model:value="form.proxy.password" type="password" show-password-on="click" />
+            </NFormItem>
+            <NFormItem :label="t('preferences.proxy-bypass')">
+              <NInput
+                v-model:value="form.proxy.bypass"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 3 }"
+                :placeholder="t('preferences.proxy-bypass-input-tips')"
+              />
+            </NFormItem>
+            <NFormItem :label="t('preferences.proxy-scope')">
+              <NSelect
+                v-model:value="form.proxy.scope"
+                :options="proxyScopeOptions"
+                multiple
+                class="pref-control-full"
+              />
+            </NFormItem>
+          </div>
+        </div>
+
+        <!-- Port conflict recovery -->
+        <NDivider title-placement="left">{{ t('preferences.port-conflict-recovery') }}</NDivider>
+        <NFormItem :label="t('preferences.port-conflict-recovery-enable')">
+          <NSwitch v-model:value="form.portConflictRecovery.enabled" />
+        </NFormItem>
+        <div
+          class="port-recovery-collapse"
+          :class="{ 'port-recovery-collapse--open': form.portConflictRecovery.enabled }"
+        >
+          <div class="port-recovery-collapse__inner collapse-indent">
+            <NFormItem>
+              <template #label>
+                <PreferenceHintLabel
+                  :label="t('preferences.port-conflict-recovery-range')"
+                  :hint="t('preferences.port-conflict-recovery-range-hint')"
+                />
+              </template>
+              <NInputGroup>
+                <NInputNumber
+                  v-model:value="form.portConflictRecovery.rangeStart"
+                  :min="1024"
+                  :max="65535"
+                  class="pref-port"
+                />
+                <span class="port-range-separator">to</span>
+                <NInputNumber
+                  v-model:value="form.portConflictRecovery.rangeEnd"
+                  :min="1024"
+                  :max="65535"
+                  class="pref-port"
+                />
+              </NInputGroup>
+            </NFormItem>
+            <NFormItem :label="t('preferences.port-conflict-recovery-apply-to')">
+              <PreferenceCheckboxGrid
+                v-model:value="selectedPortRecoveryTargets"
+                :options="portRecoveryTargetOptions"
+              />
+            </NFormItem>
+          </div>
+        </div>
+
+        <!-- Ports -->
+        <NDivider title-placement="left">{{ t('preferences.port') }}</NDivider>
+        <NFormItem label="UPnP/NAT-PMP">
+          <NSwitch v-model:value="form.enableUpnp" />
+        </NFormItem>
+        <NFormItem :label="t('preferences.bt-port')">
+          <NInputGroup>
+            <NInputNumber v-model:value="form.listenPort" :min="1024" :max="65535" class="pref-port" />
+            <NButton class="pref-icon-button" @click="onBtPortDice">
+              <template #icon>
+                <NIcon :size="14"><DiceOutline /></NIcon>
+              </template>
+            </NButton>
+          </NInputGroup>
+        </NFormItem>
+        <NFormItem :label="t('preferences.dht-port')">
+          <NInputGroup>
+            <NInputNumber v-model:value="form.dhtListenPort" :min="1024" :max="65535" class="pref-port" />
+            <NButton class="pref-icon-button" @click="onDhtPortDice">
+              <template #icon>
+                <NIcon :size="14"><DiceOutline /></NIcon>
+              </template>
+            </NButton>
+          </NInputGroup>
+        </NFormItem>
+
+        <!-- P2P Sharing -->
+        <NDivider title-placement="left">{{ t('preferences.p2p-sharing-section') }}</NDivider>
         <NFormItem>
           <template #label>
             <PreferenceHintLabel
-              :label="t('preferences.sharing-mode-manual-stop')"
-              :hint="t('preferences.sharing-mode-manual-stop-tips')"
+              :label="t('preferences.sharing-mode')"
+              :hint="t('preferences.sharing-mode-scope-hint')"
             />
           </template>
+          <NRadioGroup v-model:value="form.sharingMode" size="small">
+            <NRadioButton value="stop-by-condition">
+              {{ t('preferences.sharing-mode-stop-by-condition') }}
+            </NRadioButton>
+            <NRadioButton value="manual-stop">{{ t('preferences.sharing-mode-manual-stop') }}</NRadioButton>
+          </NRadioGroup>
         </NFormItem>
-      </NCollapseTransition>
+        <NCollapseTransition :show="form.sharingMode === 'stop-by-condition'" class="collapse-indent">
+          <NFormItem :label="t('preferences.share-ratio')">
+            <NInputNumber v-model:value="form.shareRatio" :min="1" :max="100" :step="0.1" class="pref-number" />
+          </NFormItem>
+          <NFormItem :label="t('preferences.share-time') + ' (' + t('preferences.share-time-unit') + ')'">
+            <NInputNumber v-model:value="form.shareTime" :min="60" :max="525600" class="pref-number" />
+          </NFormItem>
+        </NCollapseTransition>
+        <NCollapseTransition :show="form.sharingMode === 'manual-stop'" class="collapse-indent">
+          <NFormItem>
+            <template #label>
+              <PreferenceHintLabel
+                :label="t('preferences.sharing-mode-manual-stop')"
+                :hint="t('preferences.sharing-mode-manual-stop-tips')"
+              />
+            </template>
+          </NFormItem>
+        </NCollapseTransition>
 
-      <!-- Timeout & Disk -->
-      <NDivider title-placement="left">{{ t('preferences.transfer-params') }}</NDivider>
-      <NFormItem :label="t('preferences.connect-timeout')">
-        <NInputNumber v-model:value="form.connectTimeout" :min="1" :max="600" class="pref-number" />
-        <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
-      </NFormItem>
-      <NFormItem :label="t('preferences.timeout')">
-        <NInputNumber v-model:value="form.timeout" :min="1" :max="600" class="pref-number" />
-        <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
-      </NFormItem>
-      <NFormItem :label="t('preferences.file-allocation')">
-        <NSelect v-model:value="form.fileAllocation" :options="fileAllocationOptions" class="pref-control-auto" />
-      </NFormItem>
-      <NFormItem>
-        <template #label>
-          <PreferenceHintLabel :label="t('preferences.async-dns')" :hint="t('preferences.async-dns-hint')" />
-        </template>
-        <NSwitch v-model:value="form.asyncDns" />
-      </NFormItem>
-    </NForm>
+        <!-- Timeout & Disk -->
+        <NDivider title-placement="left">{{ t('preferences.transfer-params') }}</NDivider>
+        <NFormItem :label="t('preferences.connect-timeout')">
+          <NInputNumber v-model:value="form.connectTimeout" :min="1" :max="600" class="pref-number" />
+          <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
+        </NFormItem>
+        <NFormItem :label="t('preferences.timeout')">
+          <NInputNumber v-model:value="form.timeout" :min="1" :max="600" class="pref-number" />
+          <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
+        </NFormItem>
+        <NFormItem :label="t('preferences.file-allocation')">
+          <NSelect v-model:value="form.fileAllocation" :options="fileAllocationOptions" class="pref-control-auto" />
+        </NFormItem>
+        <NFormItem>
+          <template #label>
+            <PreferenceHintLabel :label="t('preferences.async-dns')" :hint="t('preferences.async-dns-hint')" />
+          </template>
+          <NSwitch v-model:value="form.asyncDns" />
+        </NFormItem>
+      </NForm>
+    </div>
     <UserAgentManager
       v-model:show="showUserAgentManager"
       :profiles="form.userAgentProfiles"

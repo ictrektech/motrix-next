@@ -1,5 +1,6 @@
 /** @fileoverview Application-wide constants: themes, intervals, suffixes, limits. */
 import { DEFAULT_TASK_MANUAL_ORDER, DEFAULT_TASK_SORT } from '@/composables/useTaskSort'
+import type { AppLogLevel, Aria2LogLevel } from '@shared/types'
 export const EMPTY_STRING = ''
 export const IS_PORTABLE = false
 
@@ -17,6 +18,8 @@ export interface ColorSchemeDefinition {
   labelKey: string
   /** Seed hex fed to MCU `themeFromSourceColor` to generate the full M3 tonal palette. */
   seed: string
+  /** Palette generation mode. Content keeps low-chroma colors visually neutral. */
+  variant?: 'source' | 'content'
 }
 
 /**
@@ -39,9 +42,12 @@ export const COLOR_SCHEMES: ColorSchemeDefinition[] = [
   { id: 'coral', labelKey: 'preferences.color-scheme-coral', seed: '#F97316' },
   { id: 'glacier', labelKey: 'preferences.color-scheme-glacier', seed: '#06B6D4' },
   { id: 'evergreen', labelKey: 'preferences.color-scheme-evergreen', seed: '#15803D' },
-  { id: 'graphite', labelKey: 'preferences.color-scheme-graphite', seed: '#6B7280' },
+  { id: 'graphite', labelKey: 'preferences.color-scheme-graphite', seed: '#737373', variant: 'content' },
   { id: 'sakura', labelKey: 'preferences.color-scheme-sakura', seed: '#EC4899' },
 ]
+
+export const CUSTOM_COLOR_SCHEME_ID = 'custom'
+export const DEFAULT_CUSTOM_COLOR_SCHEME = '#737373'
 
 export const APP_RUN_MODE = {
   STANDARD: 1,
@@ -64,8 +70,8 @@ export const TASK_STATUS = {
   SHARING: 'sharing',
 }
 
-export const APP_LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const
-export const ARIA2_LOG_LEVELS = ['error', 'warn', 'notice', 'info', 'debug'] as const
+export const APP_LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const satisfies readonly AppLogLevel[]
+export const ARIA2_LOG_LEVELS = ['error', 'warn', 'info', 'debug', 'trace'] as const satisfies readonly Aria2LogLevel[]
 
 export const MAX_NUM_OF_DIRECTORIES = 5
 
@@ -78,6 +84,7 @@ export const ED2K_LISTEN_PORT = 29140
 export const ED2K_UDP_LISTEN_PORT = 29150
 export const ED2K_SERVER_MET_URL = 'https://upd.emule-security.org/server.met'
 export const ED2K_NODES_DAT_URL = 'https://upd.emule-security.org/nodes.dat'
+export const BT_PEER_BLOCKLIST_URL = 'https://bcr.pbh-btn.com/combine/all.txt'
 export const PORT_RECOVERY_RANGE_START = 29000
 export const PORT_RECOVERY_RANGE_END = 29999
 export const ENGINE_MAX_CONCURRENT_DOWNLOADS = 100
@@ -331,7 +338,10 @@ export const DEFAULT_APP_CONFIG = {
   // ── Appearance ──────────────────────────────────────────────────
   theme: 'auto' as const,
   colorScheme: 'amber',
+  customColorScheme: DEFAULT_CUSTOM_COLOR_SCHEME,
   taskCardMode: 'full' as const,
+  taskListWatermark: true,
+  sidebarTaskCounts: true,
   taskPageSize: 20,
   locale: 'auto',
 
@@ -446,8 +456,8 @@ export const DEFAULT_APP_CONFIG = {
   userAgentProfiles: [],
   userAgentRules: [],
   recentUserAgentProfileIds: [],
-  logLevel: 'debug',
-  aria2LogLevel: 'notice',
+  logLevel: 'debug' as const,
+  aria2LogLevel: 'info' as const,
   cookie: '',
   runMode: '',
   engineBinPath: '',
@@ -456,6 +466,10 @@ export const DEFAULT_APP_CONFIG = {
   // ── Tracker ───────────────────────────────────────────────────
   btTrackerAutoSync: true,
   btTrackerSyncIntervalHours: 24,
+  btPeerBlocklistEnabled: true,
+  btPeerBlocklistUrl: BT_PEER_BLOCKLIST_URL,
+  btPeerBlocklistAutoSync: true,
+  btPeerBlocklistSyncIntervalHours: 24,
   trackerSource: [...DEFAULT_TRACKER_SOURCE],
   customTrackerUrls: [] as string[],
   btTracker: '',

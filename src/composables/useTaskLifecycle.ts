@@ -29,6 +29,7 @@ export function buildHistoryMeta(task: Aria2Task): HistoryMeta {
   if (task.infoHash) meta.infoHash = task.infoHash
   if (task.bittorrent?.magnetLink) meta.magnetLink = task.bittorrent.magnetLink
   if (task.ed2k?.ed2kLink) meta.ed2kLink = task.ed2k.ed2kLink
+  if (task.ed2k?.hash) meta.ed2kHash = task.ed2k.hash
   if (task.bittorrent?.announceList && task.bittorrent.announceList.length > 0) {
     meta.announceList = task.bittorrent.announceList.map((tier) => [...tier])
   }

@@ -7,7 +7,7 @@ import { hasUnsafeHeaderChars, sanitizeHeaderValue } from '@shared/utils/headerS
 import { useSystemProxyDetect } from '@/composables/useSystemProxyDetect'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { SearchOutline } from '@vicons/ionicons5'
-import type { TaskProxyMode } from '@shared/utils/proxyPolicy'
+import type { TaskProxyMode } from '@shared/utils/proxy'
 import UserAgentPopover from '@/components/common/UserAgentPopover.vue'
 import type { UserAgentProfile, UserAgentRule } from '@shared/types'
 

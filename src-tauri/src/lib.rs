@@ -5,6 +5,7 @@ mod engine;
 mod error;
 mod gpu_guard;
 mod history;
+mod log_policy;
 #[cfg(target_os = "macos")]
 mod menu;
 mod services;
@@ -111,12 +112,22 @@ fn window_state_flags() -> tauri_plugin_window_state::StateFlags {
     }
 }
 
-fn keep_window_state_enabled(app: &tauri::AppHandle) -> bool {
+/// Reads a boolean preference straight from the persistent `config.json`
+/// store, without an IPC round-trip. Returns `default` when the store is
+/// unavailable or the key is absent / not a boolean.
+///
+/// This is the single reader for the many Rust-side window/exit/lightweight
+/// decisions that must run before (or without) a live WebView.
+pub(crate) fn read_pref_bool(app: &tauri::AppHandle, key: &str, default: bool) -> bool {
     app.store("config.json")
         .ok()
         .and_then(|s| s.get("preferences"))
-        .and_then(|p| p.get("keepWindowState")?.as_bool())
-        .unwrap_or(false)
+        .and_then(|p| p.get(key)?.as_bool())
+        .unwrap_or(default)
+}
+
+fn keep_window_state_enabled(app: &tauri::AppHandle) -> bool {
+    read_pref_bool(app, "keepWindowState", false)
 }
 
 /// Restores window geometry when the user has opted into window-state restore.
@@ -168,15 +179,7 @@ pub(crate) fn handle_minimize_to_tray(app: &tauri::AppHandle, window: &tauri::We
             log::info!("lifecycle: cold-start phase ended");
         }
     }
-    let store_prefs = app
-        .store("config.json")
-        .ok()
-        .and_then(|s| s.get("preferences"));
-
-    let lightweight = store_prefs
-        .as_ref()
-        .and_then(|p| p.get("lightweightMode")?.as_bool())
-        .unwrap_or(false);
+    let lightweight = read_pref_bool(app, "lightweightMode", false);
 
     if lightweight {
         log::info!("tray:lightweight-destroy label={}", window.label());
@@ -192,11 +195,7 @@ pub(crate) fn handle_minimize_to_tray(app: &tauri::AppHandle, window: &tauri::We
 
     #[cfg(target_os = "macos")]
     {
-        let hide_dock = store_prefs
-            .as_ref()
-            .and_then(|p| p.get("hideDockOnMinimize")?.as_bool())
-            .unwrap_or(false);
-        if hide_dock {
+        if read_pref_bool(app, "hideDockOnMinimize", false) {
             use tauri::ActivationPolicy;
             let _ = app.set_activation_policy(ActivationPolicy::Accessory);
         }
@@ -207,6 +206,14 @@ pub(crate) fn handle_minimize_to_tray(app: &tauri::AppHandle, window: &tauri::We
 /// workarounds.  Called once by `Builder.setup()`.
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();
+    match handle.path().app_log_dir() {
+        Ok(log_dir) => {
+            if let Err(error) = log_policy::remove_legacy_log_files(&log_dir) {
+                log::warn!("Failed to remove legacy log files: {error}");
+            }
+        }
+        Err(error) => log::warn!("Failed to resolve log directory for cleanup: {error}"),
+    }
     #[cfg(target_os = "macos")]
     {
         let m = menu::build_menu(handle)?;
@@ -231,6 +238,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(services::speed::SpeedSchedulerState::new());
     app.manage(services::monitor::TaskMonitorState::new());
     app.manage(services::aria2_events::Aria2EventState::new());
+    app.manage(services::bt_blocklist::BtPeerBlocklistServiceState::new());
+    app.manage(commands::bt_blocklist::BtPeerBlocklistUpdateState::new());
     app.manage(services::http_api::HttpApiState::new());
     #[cfg(target_os = "linux")]
     app.manage(services::notification::LinuxNotificationRegistry::new());
@@ -279,13 +288,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         "close-window" => {
             log::info!("menu:close-window — handling Cmd+W");
 
-            let should_hide = app
-                .store("config.json")
-                .ok()
-                .and_then(|s| s.get("preferences"))
-                .as_ref()
-                .and_then(|p| p.get("minimizeToTrayOnClose")?.as_bool())
-                .unwrap_or(false);
+            let should_hide = read_pref_bool(app, "minimizeToTrayOnClose", false);
 
             if should_hide {
                 if let Some(window) = app.get_webview_window("main") {
@@ -400,22 +403,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     {
         let is_autostart = std::env::args().any(|a| a == "--autostart");
-        let hide_dock = app
-            .store("config.json")
-            .ok()
-            .and_then(|s| s.get("preferences"))
-            .map(|prefs| {
-                let auto_hide = prefs
-                    .get("autoHideWindow")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                let dock_hide = prefs
-                    .get("hideDockOnMinimize")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                auto_hide && dock_hide
-            })
-            .unwrap_or(false);
+        let hide_dock = read_pref_bool(app.handle(), "autoHideWindow", false)
+            && read_pref_bool(app.handle(), "hideDockOnMinimize", false);
         if hide_dock && is_autostart {
             use tauri::ActivationPolicy;
             app.set_activation_policy(ActivationPolicy::Accessory);
@@ -443,12 +432,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         let is_autostart =
             std::env::args().any(|a| a == "--autostart" || a.starts_with("--autostart="));
-        let auto_hide = app
-            .store("config.json")
-            .ok()
-            .and_then(|s| s.get("preferences"))
-            .and_then(|p| p.get("autoHideWindow")?.as_bool())
-            .unwrap_or(false);
+        let auto_hide = read_pref_bool(app.handle(), "autoHideWindow", false);
 
         let should_hide = is_autostart && auto_hide;
 
@@ -509,12 +493,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             log::info!("app:exit-requested code={:?}", code);
 
             if code.is_none() {
-                let should_hide = app
-                    .store("config.json")
-                    .ok()
-                    .and_then(|s| s.get("preferences"))
-                    .and_then(|p| p.get("minimizeToTrayOnClose")?.as_bool())
-                    .unwrap_or(false);
+                let should_hide = read_pref_bool(app, "minimizeToTrayOnClose", false);
 
                 log::debug!("app:exit-requested minimizeToTrayOnClose={}", should_hide);
 
@@ -533,13 +512,7 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             // persistent store and clear records directly via HistoryDb.
             // Best-effort with 2s timeout — never blocks app exit.
             {
-                use tauri_plugin_store::StoreExt;
-                let clear_on_exit = app
-                    .store("config.json")
-                    .ok()
-                    .and_then(|s| s.get("preferences"))
-                    .and_then(|p| p.get("clearCompletedOnExit")?.as_bool())
-                    .unwrap_or(false);
+                let clear_on_exit = read_pref_bool(app, "clearCompletedOnExit", false);
                 if clear_on_exit {
                     if let Some(db_state) = app.try_state::<history::HistoryDbState>() {
                         let db = db_state.0.clone();
@@ -688,7 +661,7 @@ pub fn run() {
                         message
                     ))
                 })
-                .max_file_size(10_000_000)
+                .max_file_size(log_policy::MAX_LOG_FILE_SIZE.into())
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .level(log_level)
@@ -834,6 +807,9 @@ pub fn run() {
             commands::get_upnp_status,
             commands::get_ed2k_bootstrap_status,
             commands::sync_ed2k_bootstrap_files,
+            commands::get_bt_peer_blocklist_status,
+            commands::sync_bt_peer_blocklist,
+            commands::reconcile_bt_peer_blocklist,
             commands::set_dock_visible,
             commands::minimize_to_tray,
             commands::probe_trackers,
@@ -943,13 +919,7 @@ pub fn run() {
 
                 // Read minimize-to-tray preference directly from the
                 // persistent store (Rust-side, no IPC round-trip).
-                let should_hide = app
-                    .store("config.json")
-                    .ok()
-                    .and_then(|s| s.get("preferences"))
-                    .as_ref()
-                    .and_then(|p| p.get("minimizeToTrayOnClose")?.as_bool())
-                    .unwrap_or(false);
+                let should_hide = read_pref_bool(app, "minimizeToTrayOnClose", false);
 
                 log::debug!("window:prefs minimizeToTrayOnClose={}", should_hide);
 

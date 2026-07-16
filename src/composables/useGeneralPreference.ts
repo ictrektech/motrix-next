@@ -15,7 +15,10 @@ export interface GeneralForm {
   locale: string
   theme: string
   colorScheme: string
+  customColorScheme: string
   taskCardMode: AppConfig['taskCardMode']
+  taskListWatermark: boolean
+  sidebarTaskCounts: boolean
   autoCheckUpdate: boolean
   autoCheckUpdateInterval: number
   updateChannel: string
@@ -42,7 +45,10 @@ export function buildGeneralForm(config: AppConfig): GeneralForm {
     locale: config.locale || 'auto',
     theme: config.theme ?? D.theme,
     colorScheme: config.colorScheme ?? D.colorScheme,
+    customColorScheme: config.customColorScheme ?? D.customColorScheme,
     taskCardMode: config.taskCardMode ?? D.taskCardMode,
+    taskListWatermark: config.taskListWatermark ?? D.taskListWatermark,
+    sidebarTaskCounts: config.sidebarTaskCounts ?? D.sidebarTaskCounts,
     autoCheckUpdate: config.autoCheckUpdate ?? D.autoCheckUpdate,
     autoCheckUpdateInterval: config.autoCheckUpdateInterval ?? D.autoCheckUpdateInterval,
     updateChannel: config.updateChannel ?? D.updateChannel,
