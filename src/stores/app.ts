@@ -35,6 +35,7 @@ import type {
   TauriUpdate,
   AppConfig,
   BatchItem,
+  Aria2RawGlobalStat,
 } from '@shared/types'
 import type { AddTaskForm } from '@/composables/useAddTaskSubmit'
 import { getDefaultTaskProxyMode } from '@shared/utils/proxy'
@@ -228,6 +229,18 @@ export const useAppStore = defineStore('app', () => {
   function setupStatListener(): Promise<() => void> {
     return listen<StatPayload>('stat:update', (event) => {
       handleStatEvent(event.payload)
+    })
+  }
+
+  async function fetchGlobalStat(api: { getGlobalStat: () => Promise<Aria2RawGlobalStat> }) {
+    const data = await api.getGlobalStat()
+    handleStatEvent({
+      downloadSpeed: Number(data.downloadSpeed),
+      uploadSpeed: Number(data.uploadSpeed),
+      numActive: Number(data.numActive),
+      numWaiting: Number(data.numWaiting),
+      numStopped: Number(data.numStopped),
+      numStoppedTotal: Number(data.numStoppedTotal),
     })
   }
 
@@ -572,6 +585,7 @@ export const useAppStore = defineStore('app', () => {
     updateAddTaskOptions,
     handleStatEvent,
     setupStatListener,
+    fetchGlobalStat,
     fetchEngineInfo,
     fetchEngineOptions,
     handleDeepLinkUrls,
