@@ -101,18 +101,7 @@ class WebDatabase {
     }
 
     if (normalized.startsWith('INSERT INTO download_history')) {
-      const [
-        gid,
-        name,
-        uri,
-        dir,
-        total_length,
-        status,
-        task_type,
-        added_at,
-        completed_at,
-        meta,
-      ] = params
+      const [gid, name, uri, dir, total_length, status, task_type, added_at, completed_at, meta] = params
       const existing = state.download_history.find((row) => row.gid === gid)
       const next: Row = {
         gid,

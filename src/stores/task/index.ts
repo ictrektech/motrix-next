@@ -7,11 +7,7 @@ import { getTaskName } from '@shared/utils/task'
 import { logger } from '@shared/logger'
 import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, HistoryRecord, TaskApi } from '@shared/types'
 
-import {
-  buildHistoryRecord,
-  mergeHistoryIntoTasks,
-  isMetadataTask,
-} from '@/composables/useTaskLifecycle'
+import { buildHistoryRecord, mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
 import { buildMetadataOnlyOptions, shouldShowFileSelection } from '@/composables/useMagnetFlow'
 import {
   registerAddedAt,
