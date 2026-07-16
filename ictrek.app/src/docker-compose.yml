@@ -10,6 +10,13 @@ x-motrix-next-base: &motrix-next-base
   labels:
     - "traefik.enable=true"
     - "traefik.docker.network=vos_default"
+    - "traefik.http.routers.motrix-next-top-open.rule=PathPrefix(`/app/com.ictrek.motrix-next`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
+    - "traefik.http.routers.motrix-next-top-open.priority=1000"
+    - "traefik.http.routers.motrix-next-top-open.service=motrix-next-web"
+    - "traefik.http.routers.motrix-next-top-open.middlewares=motrix-next-top-open-redirect"
+    - "traefik.http.middlewares.motrix-next-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.motrix-next/?(?:\\?.*)?$"
+    - "traefik.http.middlewares.motrix-next-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.motrix-next/com-ictrek-motrix-next/downloads"
+    - "traefik.http.middlewares.motrix-next-top-open-redirect.redirectregex.permanent=false"
     - "traefik.http.routers.motrix-next-web.rule=PathPrefix(`/app/com.ictrek.motrix-next`)"
     - "traefik.http.routers.motrix-next-web.service=motrix-next-web"
     - "traefik.http.routers.motrix-next-web.middlewares=motrix-next-web-slash,motrix-next-web-strip"
