@@ -128,23 +128,20 @@ curl 'http://127.0.0.1:47000/api/path-exists?path=%2Fdownloads%2Fexample.zip'
 
 ## VOS App Package
 
-The VOS app package lives in `ictrek.app`. It uses the same Feishu release table as `build_image.sh`: build and push the image first, then package by reading the latest `motrix` tag from Feishu.
+The VOS app package lives in `ictrek.app`. It uses the same Feishu release table as `build_image.sh`: build and push the image first, then publish the VOS package through the version update workflow.
 
 ```bash
 ./build_image.sh arm
-./ictrek.app/scripts/package.sh arm
-
 ./build_image.sh amd
-./ictrek.app/scripts/package.sh amd
 ```
 
-The package script supports `--image-source local|pull`. `local` is the default and packages the Motrix Docker image as a `docker-archive` asset. `pull` creates a smaller package with image names only and lets the VOS host pull the image during `docker compose up`:
+Use `update_version.sh` to bump `ictrek.app/VERSION`, push the VOS trigger tag, and let GitHub Actions read the latest `motrix` image tags from Feishu. The workflow builds one pull-mode tar package and uploads it to the GitHub release:
 
 ```bash
-./ictrek.app/scripts/package.sh amd --image-source pull
+./ictrek.app/scripts/update_version.sh patch
 ```
 
-The package script increments `ictrek.app/VERSION` after every successful build. Package filenames use `<version>_<profile>`, for example `motrix-next_0.0.2_amd.tar`. VOS requires the manifest version to be SemVer, so `manifest.yml` uses the same incremented version directly, for example `0.0.2`. It does not expose a host port; VOS routes the app through:
+`ictrek.app/scripts/package.sh` no longer increments or writes `ictrek.app/VERSION`. It uses the current `VERSION`, or the `PACKAGE_VERSION` value passed by GitHub Actions. The release asset name is `motrix-next_${VERSION}_pull.tar`. VOS requires the manifest version to be SemVer and routes the app through:
 
 ```text
 /app/com.ictrek.motrix-next/
