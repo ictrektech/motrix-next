@@ -79,6 +79,7 @@ if (import.meta.env.PROD) {
       !rawLocale || rawLocale === 'auto'
         ? resolveSystemLocale(navigator.language || 'en-US', i18n.global.availableLocales)
         : rawLocale
+    await loadLocale(resolvedLocale)
     setI18nLocale(i18n, resolvedLocale)
     preferenceStore.flushMigrationSignals()
 
