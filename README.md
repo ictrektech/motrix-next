@@ -143,6 +143,8 @@ Use `update_version.sh` to bump `ictrek.app/VERSION`, push the VOS trigger tag, 
 
 `ictrek.app/scripts/package.sh` no longer increments or writes `ictrek.app/VERSION`. It uses the current `VERSION`, or the `PACKAGE_VERSION` value passed by GitHub Actions. The release asset name is `motrix-next_${VERSION}_pull.tar`. VOS requires the manifest version to be SemVer and routes the app through:
 
+The workflow only needs Feishu component credentials (`FEISHU_APP_ID`, `FEISHU_APP_SECRET`, optional `FEISHU_SPREADSHEET_TOKEN`). It does not use `VOS_DEPENDENCY_RELEASE_TOKEN` because Motrix Next does not resolve dependency versions from other VOS app releases.
+
 ```text
 /app/com.ictrek.motrix-next/
 ```
