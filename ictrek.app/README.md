@@ -80,4 +80,12 @@ https://<vos-host>:1180/app/com.ictrek.motrix-next/
 
 ## 路由
 
-`routers.yml` 使用完整的 group/page 结构。页面入口必须写 `entry-point: true`，同域嵌入页面必须保留 `keep-alive: true` 和 `embed: true`。新增或修改入口时必须同步检查 `iframe-src` 指向 `/app/com.ictrek.motrix-next/`，否则安装后可能从新标签页打开或找不到侧边栏内嵌入口。
+`routers.yml` 使用完整的 group/page 结构。页面入口必须写 `entry-point: true`，同域嵌入页面必须保留 `keep-alive: true` 和 `embed: true`。Motrix Next 的固定入口契约是：
+
+- `app id`: `com.ictrek.motrix-next`
+- `group.id`: `com-ictrek-motrix-next`
+- `page.id`: `downloads`
+- `iframe-src`: `/app/com.ictrek.motrix-next/`
+- VOS 内部侧边栏路径：`#/app/com.ictrek.motrix-next/com-ictrek-motrix-next/downloads`
+
+`scripts/package.sh` 会在生成 `app.tar.gz` 后校验以上字段；不匹配时直接失败。新增或修改入口时必须同步更新模板和脚本校验值。
