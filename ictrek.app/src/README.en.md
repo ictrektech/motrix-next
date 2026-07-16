@@ -17,8 +17,8 @@ The app does not require a host port mapping.
 Downloaded files and aria2 session state are stored under:
 
 ```text
-${MOTRIX_DOWNLOADS_PATH:-${VOS_APP_STORAGE_PATH}/downloads}
+${MOTRIX_DOWNLOADS_PATH:-/data/vos_workspace/motrix/downloads}
 ```
 
 The container path is `/downloads`, and the aria2 session file is `/downloads/.aria2/aria2.session`.
-`MOTRIX_DOWNLOADS_PATH` is configurable in the VOS install UI. Leave it empty to use the default app storage directory.
+`MOTRIX_DOWNLOADS_PATH` is configurable in the VOS install UI. It defaults to host path `/data/vos_workspace/motrix/downloads`.

@@ -76,7 +76,7 @@ VOS 主机必须能访问并拉取 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/
 https://<vos-host>:1180/app/com.ictrek.motrix-next/
 ```
 
-安装表单可配置 `MOTRIX_DOWNLOADS_PATH`。留空时使用 VOS 应用存储中的 `downloads` 目录；需要把下载文件放到宿主机其他磁盘或用户目录时，直接在安装 UI 中填写宿主机绝对路径。
+安装表单可配置 `MOTRIX_DOWNLOADS_PATH`。默认使用宿主机 `/data/vos_workspace/motrix/downloads`；需要把下载文件放到宿主机其他磁盘或用户目录时，直接在安装 UI 中填写宿主机绝对路径。
 
 ## 路由
 
