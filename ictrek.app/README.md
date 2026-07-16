@@ -80,4 +80,4 @@ https://<vos-host>:1180/app/com.ictrek.motrix-next/
 
 ## 路由
 
-`routers.yml` 使用完整的 group/page 结构，并保留 `keep-alive: true`。新增或修改入口时必须同步检查 `iframe-src` 指向 `/app/com.ictrek.motrix-next/`。
+`routers.yml` 使用完整的 group/page 结构。页面入口必须写 `entry-point: true`，同域嵌入页面必须保留 `keep-alive: true` 和 `embed: true`。新增或修改入口时必须同步检查 `iframe-src` 指向 `/app/com.ictrek.motrix-next/`，否则安装后可能从新标签页打开或找不到侧边栏内嵌入口。
