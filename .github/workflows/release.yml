@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name != 'release' || !startsWith(github.event.release.name, 'VOS ')
+    if: github.event_name != 'release' || !startsWith(github.event.release.body, 'Pull-mode VOS app package')
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +98,7 @@ jobs:
   merge-updater-json:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && !startsWith(github.event.release.name, 'VOS ')
+    if: github.event_name == 'release' && !startsWith(github.event.release.body, 'Pull-mode VOS app package')
 
     steps:
       - uses: actions/checkout@v6
@@ -112,7 +112,7 @@ jobs:
   update-homebrew:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && !github.event.release.prerelease && !startsWith(github.event.release.name, 'VOS ')
+    if: github.event_name == 'release' && !github.event.release.prerelease && !startsWith(github.event.release.body, 'Pull-mode VOS app package')
 
     steps:
       - name: Download macOS artifacts and compute checksums

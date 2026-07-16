@@ -1,1 +1,10 @@
-configs: []
+configs:
+  - name: MOTRIX_DOWNLOADS_PATH
+    type: path
+    title:
+      zh-CN: 下载目录
+      en: Downloads Path
+    description:
+      zh-CN: 环境变量 MOTRIX_DOWNLOADS_PATH。宿主机上的下载目录，同时保存 aria2 session；留空时使用 VOS 应用存储 downloads 目录。
+      en: Environment variable MOTRIX_DOWNLOADS_PATH. Host downloads directory, also storing the aria2 session; leave empty to use the VOS app storage downloads directory.
+    default: ""

@@ -69,10 +69,10 @@ The image name is `motrix`, and the pushed image tag format is:
 swr.cn-southwest-2.myhuaweicloud.com/ictrek/motrix:<profile>_YYYYMMDD
 ```
 
-`build_image.sh` writes the pushed tag to the existing Feishu release table:
+`build_image.sh` writes the pushed tag to the existing Feishu release table. The VOS package reads only the app packaging sheets:
 
-- `amd` -> sheets `AMD_with_cuda`, `AMD_with_mxn100`, column `motrix`
-- `arm` -> sheets `ARM_without_cuda`, `ARM_with_cuda`, `l4t`, `thor_spark`, `SOPHON_bm1688`, column `motrix`
+- `amd` -> sheet `AMD_with_cuda`, column `motrix`
+- `arm` -> sheet `ARM_with_cuda`, column `motrix`
 
 The sheet names are compatibility labels only. The Docker images do not use CUDA.
 
@@ -150,7 +150,7 @@ The package script increments `ictrek.app/VERSION` after every successful build.
 /app/com.ictrek.motrix-next/
 ```
 
-VOS persists downloads and aria2 task state through `${VOS_APP_STORAGE_PATH}/downloads:/downloads`.
+VOS persists downloads and aria2 task state through `${MOTRIX_DOWNLOADS_PATH:-${VOS_APP_STORAGE_PATH}/downloads}:/downloads`. `MOTRIX_DOWNLOADS_PATH` is configurable in the VOS install UI; leave it empty to use the default app storage directory.
 
 The VOS gateway redirects `/app/com.ictrek.motrix-next` to `/app/com.ictrek.motrix-next/` so relative web assets resolve under the app path.
 

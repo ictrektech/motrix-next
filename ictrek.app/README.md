@@ -24,7 +24,7 @@ ictrek.app/dist/motrix-next_${VERSION}_pull.tar
 
 | profile | 飞书 sheet | 适用平台 |
 | --- | --- | --- |
-| `arm` | `ARM_without_cuda` | ARM / L4T 类设备 |
+| `arm` | `ARM_with_cuda` | ARM / L4T 类设备 |
 | `amd` | `AMD_with_cuda` | x86_64 / AMD64 类设备 |
 
 安装时由 VOS 指定其中一个 profile。手动验证 Compose 文件时也必须只启用一个 profile：
@@ -70,6 +70,8 @@ VOS 主机必须能访问并拉取 `swr.cn-southwest-2.myhuaweicloud.com/ictrek/
 ```text
 https://<vos-host>:1180/app/com.ictrek.motrix-next/
 ```
+
+安装表单可配置 `MOTRIX_DOWNLOADS_PATH`。留空时使用 VOS 应用存储中的 `downloads` 目录；需要把下载文件放到宿主机其他磁盘或用户目录时，直接在安装 UI 中填写宿主机绝对路径。
 
 ## 路由
 
