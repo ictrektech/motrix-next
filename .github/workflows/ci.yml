@@ -1,7 +1,8 @@
 name: CI
 on:
   push:
-    branches: [main, dev]
+    tags:
+      - "vos-motrix-next-v*"
   pull_request:
     branches: [main]
 
