@@ -235,13 +235,14 @@ export const useTaskStore = defineStore('task', () => {
         const missingHistoryTasks = stoppedTasks.filter(
           (task) => !knownHistoryGids.has(task.gid) && !checkTaskIsEd2kSearch(task) && !isMetadataTask(task),
         )
+        const knownStoppedTasks = stoppedTasks.filter((task) => knownHistoryGids.has(task.gid))
         for (const task of missingHistoryTasks) {
           historyStore
             .addRecord(buildHistoryRecord(task))
             .catch((e: unknown) => logger.debug('TaskStore.backfillStoppedHistory', e))
         }
         const { field, direction } = sortConfig.stopped
-        data = mergeHistoryIntoTasks(stoppedTasks, records).filter((t) => !checkTaskIsEd2kSearch(t))
+        data = mergeHistoryIntoTasks(knownStoppedTasks, records).filter((t) => !checkTaskIsEd2kSearch(t))
         if (field === 'manual') {
           applyManualOrder(data, usePreferenceStore().config.taskManualOrder.stopped, (fresh) => {
             sortStoppedTasks(fresh, 'added-at', 'desc', records)
