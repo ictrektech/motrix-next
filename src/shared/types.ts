@@ -619,9 +619,6 @@ export interface TaskApi {
   forcePauseTask: (params: { gid: string }) => Promise<string>
   pauseTask: (params: { gid: string }) => Promise<string>
   resumeTask: (params: { gid: string }) => Promise<string>
-  pauseAllTask: () => Promise<string>
-  forcePauseAllTask: () => Promise<string>
-  resumeAllTask: () => Promise<string>
   batchResumeTask: (params: { gids: string[] }) => Promise<unknown[][]>
   batchPauseTask: (params: { gids: string[] }) => Promise<unknown[][]>
   batchForcePauseTask: (params: { gids: string[] }) => Promise<unknown[][]>

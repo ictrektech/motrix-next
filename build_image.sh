@@ -7,7 +7,7 @@ FEISHU_CONFIG_FILE="${HOME}/.feishu.json"
 FEISHU_SPREADSHEET_TOKEN="Htotsn3oahO1zxt73YMcaB1zn8e"
 
 AMD_SHEETS=("AMD_with_cuda" "AMD_with_mxn100")
-ARM_SHEETS=("ARM_without_cuda" "ARM_with_cuda" "l4t" "thor_spark" "SOPHON_bm1688")
+ARM_SHEETS=("ARM_without_cuda" "ARM_with_cuda" "l4t" "thor_spark")
 
 declare -A PROFILE_TO_DOCKERFILE=(
   ["amd"]="Dockerfile.amd"
@@ -395,7 +395,7 @@ Usage:
 
 Supported sheets:
   AMD: AMD_with_cuda, AMD_with_mxn100
-  ARM: ARM_without_cuda, ARM_with_cuda, l4t, thor_spark, SOPHON_bm1688
+  ARM: ARM_without_cuda, ARM_with_cuda, l4t, thor_spark
 EOF
 }
 

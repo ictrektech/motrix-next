@@ -85,7 +85,8 @@ describe('buildBtForm', () => {
 
   it('defaults trackerSource from DEFAULT_APP_CONFIG', () => {
     const form = buildBtForm(emptyConfig)
-    expect(form.trackerSource).toEqual(expect.arrayContaining([]))
+    expect(form.trackerSource).toEqual(DEFAULT_APP_CONFIG.trackerSource)
+    expect(form.trackerSource).toHaveLength(2)
   })
 
   it('preserves custom tracker source URLs', () => {

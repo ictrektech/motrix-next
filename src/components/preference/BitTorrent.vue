@@ -17,6 +17,7 @@ import {
   ENGINE_MAX_BT_MAX_PEERS,
   ENGINE_RPC_PORT,
   SAFE_LIMIT_BT_MAX_PEERS,
+  TRACKER_SOURCE_OPTIONS,
 } from '@shared/constants'
 import { logger } from '@shared/logger'
 import { getErrorMessage } from '@shared/utils/errorMessage'
@@ -27,7 +28,6 @@ import {
   transformBtForStore,
   isValidTrackerSourceUrl,
 } from '@/composables/useBtPreference'
-import { trackerSourceOptions } from '@shared/constants/trackerSources'
 import {
   NForm,
   NFormItem,
@@ -39,6 +39,8 @@ import {
   NButton,
   NDivider,
   NIcon,
+  NCheckbox,
+  NCheckboxGroup,
   NText,
   useDialog,
 } from 'naive-ui'
@@ -105,9 +107,7 @@ const selectedDhtNetworks = computed({
 })
 
 // ── Tracker source management ───────────────────────────────────────
-const presetTrackerValues = new Set<string>(
-  trackerSourceOptions.flatMap((group) => ('children' in group ? group.children.map((c) => c.value) : [])),
-)
+const presetTrackerValues = new Set<string>(TRACKER_SOURCE_OPTIONS.map((source) => source.value))
 
 const presetSources = computed({
   get: () => form.value.trackerSource.filter((v: string) => presetTrackerValues.has(v)),
@@ -141,13 +141,12 @@ function renderCustomOption(info: {
   selected: boolean
 }): VNodeChild {
   const url = String(info.option.value ?? '')
-  return h('div', { style: 'display:flex;align-items:center;position:relative;padding-right:32px' }, [
-    h('div', { style: 'flex:1;min-width:0' }, [info.node]),
+  return h('div', { class: 'custom-tracker-option' }, [
+    h('div', { class: 'custom-tracker-option__content' }, [info.node]),
     h(
       'span',
       {
-        style:
-          'position:absolute;right:8px;display:flex;align-items:center;cursor:pointer;color:var(--error-color, #e88080)',
+        class: 'custom-tracker-option__delete',
         onClick: (e: Event) => onDeleteCustomTracker(url, e),
       },
       [h(NIcon, { size: 18 }, { default: () => h(CloseCircleOutline) })],
@@ -223,7 +222,7 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
     if (!checkIsNeedRestart(changed)) return true
 
     const ok = await new Promise<boolean>((resolve) => {
-      dialog.warning({
+      dialog.info({
         title: t('preferences.engine-restart-title'),
         content: t('preferences.engine-restart-confirm'),
         positiveText: t('preferences.engine-restart-now'),
@@ -256,6 +255,14 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
     }
   },
 })
+
+const mergedTrackerCount = computed(
+  () =>
+    form.value.btTracker
+      .split(/\r?\n/)
+      .map((tracker) => tracker.trim())
+      .filter(Boolean).length,
+)
 
 async function loadBlocklistStatus() {
   try {
@@ -333,27 +340,20 @@ function showSyncFailureDialog(
   dialog[dialogType]({
     title,
     content: () =>
-      h('div', { style: 'max-height:300px;overflow-y:auto' }, [
+      h('div', { class: 'tracker-sync-failures' }, [
         isPartial
           ? h(
               'p',
-              { style: 'margin:0 0 8px;color:var(--text-color-secondary, #999)' },
+              { class: 'tracker-sync-failures__summary' },
               `${successCount}/${totalCount} ${t('preferences.bt-tracker-sync-sources-ok')}`,
             )
           : null,
-        h('p', { style: 'margin:0 0 8px;font-weight:500' }, t('preferences.bt-tracker-sync-failed-sources')),
+        h('p', { class: 'tracker-sync-failures__heading' }, t('preferences.bt-tracker-sync-failed-sources')),
         ...failures.map((f) =>
-          h(
-            'div',
-            {
-              style:
-                'margin:6px 0;padding:6px 8px;border-radius:4px;background:var(--error-color-hover, rgba(232,128,128,0.08))',
-            },
-            [
-              h('div', { style: 'font-size:12px;word-break:break-all;font-weight:500' }, f.url),
-              h('div', { style: 'font-size:11px;color:var(--error-color, #e88080);margin-top:2px' }, f.reason),
-            ],
-          ),
+          h('div', { class: 'tracker-sync-failure' }, [
+            h('div', { class: 'tracker-sync-failure__url' }, f.url),
+            h('div', { class: 'tracker-sync-failure__reason' }, f.reason),
+          ]),
         ),
       ]),
     positiveText: 'OK',
@@ -380,7 +380,7 @@ const { restartEngine } = useEngineRestart()
 function handleManualRestart() {
   const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
   const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.warning({
+  const d = dialog.info({
     title: t('preferences.engine-restart-title'),
     content: t('preferences.engine-restart-manual-confirm'),
     positiveText: t('preferences.engine-restart-now'),
@@ -495,14 +495,21 @@ onMounted(() => {
         <!-- Tracker Management -->
         <NDivider title-placement="left">{{ t('preferences.bt-tracker') }}</NDivider>
         <NFormItem :label="t('preferences.bt-tracker-source-preset')">
-          <NSelect
-            v-model:value="presetSources"
-            :options="trackerSourceOptions"
-            multiple
-            :placeholder="t('preferences.bt-tracker-source-placeholder')"
-            clearable
-            max-tag-count="responsive"
-          />
+          <NCheckboxGroup v-model:value="presetSources" class="tracker-source-group">
+            <div class="tracker-source-list">
+              <NCheckbox
+                v-for="source in TRACKER_SOURCE_OPTIONS"
+                :key="source.value"
+                :value="source.value"
+                class="tracker-source-option"
+              >
+                <span class="tracker-source-option__content">
+                  <span class="tracker-source-option__owner">{{ source.owner }}</span>
+                  <span class="tracker-source-option__repository">{{ source.repository }}</span>
+                </span>
+              </NCheckbox>
+            </div>
+          </NCheckboxGroup>
         </NFormItem>
         <NFormItem :label="t('preferences.bt-tracker-source-custom')">
           <NInputGroup>
@@ -546,6 +553,7 @@ onMounted(() => {
               {{ t('preferences.bt-tracker-sync') }}
             </NButton>
             <NText depth="3" class="pref-inline-row__meta">
+              {{ t('preferences.bt-tracker-count', { count: mergedTrackerCount }) }} ·
               {{ t('preferences.last-sync-time') }}
               {{ form.lastSyncTrackerTime ? new Date(form.lastSyncTrackerTime as number).toLocaleString() : '—' }}
             </NText>
@@ -558,25 +566,6 @@ onMounted(() => {
             :autosize="{ minRows: 3, maxRows: 8 }"
             :placeholder="t('preferences.bt-tracker-input-tips')"
           />
-        </NFormItem>
-        <NFormItem :show-label="false">
-          <div class="info-text">
-            {{ t('preferences.bt-tracker-tips') }}
-            <button
-              class="info-link"
-              type="button"
-              @click="openTrackerSource('https://github.com/ngosang/trackerslist')"
-            >
-              ngosang/trackerslist ↗
-            </button>
-            <button
-              class="info-link pref-meta-link"
-              type="button"
-              @click="openTrackerSource('https://github.com/XIU2/TrackersListCollection')"
-            >
-              XIU2/TrackersListCollection ↗
-            </button>
-          </div>
         </NFormItem>
         <NFormItem :label="t('preferences.auto-sync')">
           <NSwitch v-model:value="form.btTrackerAutoSync" />
@@ -598,6 +587,109 @@ onMounted(() => {
 .bt-tracker-sync-button {
   min-width: 100px;
 }
+:global(.custom-tracker-option) {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 32px;
+}
+:global(.custom-tracker-option__content) {
+  flex: 1;
+  min-width: 0;
+}
+:global(.custom-tracker-option__delete) {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  color: var(--m3-error);
+  cursor: pointer;
+}
+:global(.tracker-sync-failures) {
+  max-height: 300px;
+  overflow-y: auto;
+}
+:global(.tracker-sync-failures__summary) {
+  margin: 0 0 8px;
+  color: var(--m3-on-surface-variant);
+}
+:global(.tracker-sync-failures__heading) {
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+:global(.tracker-sync-failure) {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--m3-error-container);
+  color: var(--m3-on-error-container);
+}
+:global(.tracker-sync-failure__url) {
+  font-size: 12px;
+  font-weight: 500;
+  word-break: break-all;
+}
+:global(.tracker-sync-failure__reason) {
+  margin-top: 2px;
+  font-size: 11px;
+}
+.tracker-source-group {
+  width: 100%;
+}
+.tracker-source-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  max-width: 520px;
+}
+.tracker-source-option {
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--m3-surface-container-low) 72%, transparent);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+.tracker-source-option:hover {
+  border-color: color-mix(in srgb, var(--m3-primary) 42%, var(--m3-outline-variant));
+  background: var(--m3-surface-container-low);
+}
+.tracker-source-option.n-checkbox--checked {
+  border-color: color-mix(in srgb, var(--m3-primary) 58%, var(--m3-outline-variant));
+  background: color-mix(in srgb, var(--m3-primary) 7%, var(--m3-surface-container-low));
+}
+.tracker-source-option:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--m3-primary) 68%, transparent);
+  outline-offset: 2px;
+}
+.tracker-source-option :deep(.n-checkbox__label) {
+  min-width: 0;
+  flex: 1;
+}
+.tracker-source-option__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tracker-source-option__owner,
+.tracker-source-option__repository {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tracker-source-option__owner {
+  color: var(--m3-on-surface);
+  font-size: 13px;
+  font-weight: 600;
+}
+.tracker-source-option__repository {
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+}
 .bt-blocklist-update-button {
   min-width: 100px;
 }
@@ -616,17 +708,11 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.info-text {
-  color: var(--m3-on-surface-variant);
-  font-size: 12px;
-  max-width: 520px;
-  word-wrap: break-word;
-}
 .info-link {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-primary);
+  color: var(--m3-primary);
   cursor: pointer;
   text-decoration: none;
   font-size: 12px;
@@ -634,7 +720,9 @@ onMounted(() => {
 .info-link:hover {
   text-decoration: underline;
 }
-.info-text .pref-meta-link {
-  margin-left: 18px;
+@media (max-width: 720px) {
+  .tracker-source-list {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

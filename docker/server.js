@@ -11,6 +11,9 @@ const ARIA2_PORT = Number(process.env.ARIA2_PORT || 29100)
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || '/downloads'
 const ROOT = process.env.WEB_ROOT || path.join(__dirname, '../dist')
 const SESSION_FILE = process.env.ARIA2_SESSION_FILE || path.join(DOWNLOAD_DIR, '.aria2', 'aria2.session')
+const VOS_APP_VERSION = process.env.VOS_APP_VERSION || ''
+const MOTRIX_IMAGE = process.env.MOTRIX_IMAGE || ''
+const MOTRIX_PROFILE = process.env.MOTRIX_PROFILE || ''
 
 fs.mkdirSync(DOWNLOAD_DIR, { recursive: true })
 fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true })
@@ -97,6 +100,25 @@ function handlePathExists(req, res) {
   res.end(JSON.stringify({ exists }))
 }
 
+function imageTag(image) {
+  const withoutDigest = image.split('@')[0]
+  const index = withoutDigest.lastIndexOf(':')
+  return index >= 0 ? withoutDigest.slice(index + 1) : ''
+}
+
+function handleRuntimeInfo(_req, res) {
+  res.writeHead(200, {
+    'cache-control': 'no-store',
+    'content-type': 'application/json; charset=utf-8',
+  })
+  res.end(JSON.stringify({
+    vosAppVersion: VOS_APP_VERSION,
+    image: MOTRIX_IMAGE,
+    imageVersion: imageTag(MOTRIX_IMAGE),
+    profile: MOTRIX_PROFILE,
+  }))
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
@@ -111,6 +133,11 @@ const server = http.createServer((req, res) => {
 
   if (req.url && req.url.startsWith('/api/path-exists')) {
     handlePathExists(req, res)
+    return
+  }
+
+  if (req.url && req.url.startsWith('/api/runtime-info')) {
+    handleRuntimeInfo(req, res)
     return
   }
 

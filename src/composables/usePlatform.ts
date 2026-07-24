@@ -25,7 +25,18 @@ function _ensureInit(): void {
   if (_initialised) return
   _initialised = true
   try {
-    _platform.value = platform()
+    const value = platform() as string | Promise<string>
+    if (typeof value === 'string') {
+      _platform.value = value
+      return
+    }
+    void value
+      .then((resolved) => {
+        _platform.value = resolved
+      })
+      .catch((e: unknown) => {
+        logger.debug('Platform', `platform() unavailable (SSR/test context): ${e}`)
+      })
   } catch (e) {
     logger.debug('Platform', `platform() unavailable (SSR/test context): ${e}`)
   }

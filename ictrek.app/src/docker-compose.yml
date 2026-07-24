@@ -5,6 +5,7 @@ x-motrix-next-base: &motrix-next-base
   environment:
     PORT: "47000"
     DOWNLOAD_DIR: /downloads
+    VOS_APP_VERSION: "__APP_VERSION__"
   volumes:
     - ${MOTRIX_DOWNLOADS_PATH:-/data/vos_workspace/motrix/downloads}:/downloads
   labels:
@@ -38,12 +39,24 @@ services:
     profiles: ["arm"]
     image: ${MOTRIX_ARM_IMAGE}
     pull_policy: always
+    environment:
+      PORT: "47000"
+      DOWNLOAD_DIR: /downloads
+      VOS_APP_VERSION: "__APP_VERSION__"
+      MOTRIX_PROFILE: arm
+      MOTRIX_IMAGE: ${MOTRIX_ARM_IMAGE}
 
   motrix-next-amd:
     <<: *motrix-next-base
     profiles: ["amd"]
     image: ${MOTRIX_AMD_IMAGE}
     pull_policy: always
+    environment:
+      PORT: "47000"
+      DOWNLOAD_DIR: /downloads
+      VOS_APP_VERSION: "__APP_VERSION__"
+      MOTRIX_PROFILE: amd
+      MOTRIX_IMAGE: ${MOTRIX_AMD_IMAGE}
 
 networks:
   vos_default:

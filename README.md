@@ -180,3 +180,7 @@ docker run -d \
   -v /home/jhu/Downloads:/downloads \
   swr.cn-southwest-2.myhuaweicloud.com/ictrek/motrix:amd_YYYYMMDD
 ```
+
+## License
+
+[MIT](https://opensource.org/licenses/MIT) - Copyright (c) 2025-present AnInsomniacy

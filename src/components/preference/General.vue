@@ -16,6 +16,7 @@ import { resolveSystemLocale } from '@shared/utils/locale'
 import { SUPPORTED_LOCALES, loadLocale } from '@/composables/useLocale'
 import { logger } from '@shared/logger'
 import { writeAppClipboardText } from '@shared/utils'
+import { isWebApp } from '@/web/runtime'
 import {
   buildGeneralForm,
   buildGeneralSystemConfig,
@@ -61,6 +62,14 @@ const sysAppVersion = ref('')
 const sysAria2Version = ref('')
 const detectedLocaleCode = ref('en-US')
 const archLabelDisplay = computed(() => getArchLabel(sysArch.value))
+const vosRuntimeInfo = ref<VosRuntimeInfo | null>(null)
+
+interface VosRuntimeInfo {
+  vosAppVersion?: string
+  image?: string
+  imageVersion?: string
+  profile?: string
+}
 
 async function copyVersionToClipboard(text: string, label: string) {
   try {
@@ -71,6 +80,26 @@ async function copyVersionToClipboard(text: string, label: string) {
   }
 }
 const updateDialogRef = ref<InstanceType<typeof UpdateDialog> | null>(null)
+
+async function fetchVosRuntimeInfo(): Promise<void> {
+  if (!isWebApp) return
+  try {
+    const response = await fetch('./api/runtime-info', { cache: 'no-store' })
+    if (!response.ok) return
+    vosRuntimeInfo.value = (await response.json()) as VosRuntimeInfo
+  } catch (e) {
+    logger.debug('General.vosRuntimeInfo', e)
+  }
+}
+
+async function readOsValue(reader: () => string | Promise<string>, scope: string): Promise<string> {
+  try {
+    return await Promise.resolve(reader())
+  } catch (e) {
+    logger.debug(scope, e)
+    return ''
+  }
+}
 
 const checkIntervalOptions = [
   { label: t('preferences.interval-every-startup'), value: 0 },
@@ -260,7 +289,7 @@ const { restartEngine } = useEngineRestart()
 function handleManualRestart() {
   const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
   const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.warning({
+  const d = dialog.info({
     title: t('preferences.engine-restart-title'),
     content: t('preferences.engine-restart-manual-confirm'),
     positiveText: t('preferences.engine-restart-now'),
@@ -278,16 +307,8 @@ function handleManualRestart() {
 }
 
 onMounted(async () => {
-  try {
-    sysArch.value = osArch()
-  } catch (e) {
-    logger.debug('General.arch', e)
-  }
-  try {
-    sysOsVersion.value = osVersion()
-  } catch (e) {
-    logger.debug('General.osVersion', e)
-  }
+  sysArch.value = await readOsValue(osArch, 'General.arch')
+  sysOsVersion.value = await readOsValue(osVersion, 'General.osVersion')
   try {
     sysAppVersion.value = await getAppVersion()
   } catch (e) {
@@ -305,6 +326,7 @@ onMounted(async () => {
   } catch (e) {
     logger.debug('General.detectLocale', e)
   }
+  await fetchVosRuntimeInfo()
   resetSnapshot()
 })
 </script>
@@ -357,6 +379,40 @@ onMounted(async () => {
           <div v-else class="sysinfo-ver-badge sysinfo-ver-badge--muted">
             <span class="sysinfo-ver-muted">{{ t('about.unavailable') }}</span>
           </div>
+        </NFormItem>
+        <NFormItem v-if="vosRuntimeInfo?.vosAppVersion" label="VOS App Version">
+          <MTooltip>
+            <template #trigger>
+              <button
+                class="sysinfo-ver-badge"
+                @click="copyVersionToClipboard(`VOS App v${vosRuntimeInfo?.vosAppVersion || ''}`, 'VOS App')"
+              >
+                <span class="sysinfo-ver-value">v{{ vosRuntimeInfo.vosAppVersion }}</span>
+                <svg class="sysinfo-ver-copy" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2" />
+                </svg>
+              </button>
+            </template>
+            {{ t('about.click-to-copy') }}
+          </MTooltip>
+        </NFormItem>
+        <NFormItem v-if="vosRuntimeInfo?.imageVersion" label="Image Version">
+          <MTooltip>
+            <template #trigger>
+              <button
+                class="sysinfo-ver-badge sysinfo-ver-badge--wide"
+                @click="copyVersionToClipboard(vosRuntimeInfo?.image || vosRuntimeInfo?.imageVersion || '', 'Image')"
+              >
+                <span class="sysinfo-ver-value">{{ vosRuntimeInfo.imageVersion }}</span>
+                <svg class="sysinfo-ver-copy" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2" />
+                </svg>
+              </button>
+            </template>
+            {{ vosRuntimeInfo.image }}
+          </MTooltip>
         </NFormItem>
 
         <!-- ② Language -->
@@ -542,16 +598,16 @@ onMounted(async () => {
   gap: 12px;
   height: 30px;
   padding: 0 10px;
-  border: 1px solid var(--m3-outline-variant, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--m3-outline-variant);
   border-radius: 8px;
-  background: var(--about-card-bg, rgba(255, 255, 255, 0.03));
+  background: var(--about-card-bg);
   cursor: pointer;
-  transition: var(--transition-all, 0.2s ease);
+  transition: var(--transition-all);
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace;
 }
 .sysinfo-ver-badge:hover {
-  border-color: var(--color-primary);
-  background: var(--about-card-hover-bg, rgba(255, 255, 255, 0.06));
+  border-color: var(--m3-primary);
+  background: var(--about-card-hover-bg);
 }
 .sysinfo-ver-badge:hover .sysinfo-ver-copy {
   opacity: 0.7;
@@ -562,27 +618,35 @@ onMounted(async () => {
 .sysinfo-ver-value {
   font-size: 13px;
   font-weight: 520;
-  color: var(--m3-on-surface, rgba(255, 255, 255, 0.9));
+  color: var(--m3-on-surface);
   letter-spacing: 0.3px;
+}
+.sysinfo-ver-badge--wide {
+  max-width: min(520px, 100%);
+}
+.sysinfo-ver-badge--wide .sysinfo-ver-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sysinfo-ver-copy {
   opacity: 0.35;
   margin-left: auto;
-  color: var(--m3-on-surface-variant, rgba(255, 255, 255, 0.5));
-  transition: var(--transition-all, 0.2s ease);
+  color: var(--m3-on-surface-variant);
+  transition: var(--transition-all);
   flex-shrink: 0;
 }
 .sysinfo-ver-badge--muted {
   cursor: default;
 }
 .sysinfo-ver-badge--muted:hover {
-  border-color: var(--m3-outline-variant, rgba(255, 255, 255, 0.08));
-  background: var(--about-card-bg, rgba(255, 255, 255, 0.03));
+  border-color: var(--m3-outline-variant);
+  background: var(--about-card-bg);
 }
 .sysinfo-ver-muted {
   font-size: 12px;
   font-weight: 500;
-  color: var(--m3-outline, rgba(255, 255, 255, 0.38));
+  color: var(--m3-outline);
   letter-spacing: 0.3px;
 }
 
@@ -618,7 +682,7 @@ onMounted(async () => {
   transform: scale(1.05);
 }
 .color-swatch.active {
-  border-color: var(--m3-on-surface, #fff);
+  border-color: var(--m3-on-surface);
   box-shadow:
     0 0 0 2px var(--swatch-color),
     0 2px 8px rgba(0, 0, 0, 0.25);

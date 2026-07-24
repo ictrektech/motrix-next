@@ -32,7 +32,36 @@ document.querySelectorAll('.bcard').forEach((card) => {
 })
 
 /* ═══ Count-up animation for hero stats ═════════════════════════════ */
+function reserveCountWidth(el, sample) {
+  const probe = el.cloneNode()
+  probe.removeAttribute('id')
+  probe.classList.remove('loading')
+  probe.textContent = sample
+  Object.assign(probe.style, {
+    position: 'fixed',
+    inset: 'auto auto 100% 100%',
+    inlineSize: 'max-content',
+    visibility: 'hidden',
+  })
+  document.body.appendChild(probe)
+  el.style.inlineSize = `${Math.ceil(probe.getBoundingClientRect().width)}px`
+  probe.remove()
+}
+
+function compactNumberWidthSample(target) {
+  if (target < 1000) return '0'.repeat(String(target).length)
+  const thousandsDigits = String(Math.floor(target / 1000)).length
+  return `${'0'.repeat(thousandsDigits)}.0k`
+}
+
 function countUp(el, target, format) {
+  reserveCountWidth(el, compactNumberWidthSample(target))
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.textContent = format(target)
+    return
+  }
+
   const duration = 900
   const start = performance.now()
   function frame(now) {
@@ -100,20 +129,6 @@ langDropdown.addEventListener('click', (e) => {
     dropdown.querySelectorAll('.picker-option').forEach((opt) => {
       opt.classList.toggle('active', opt.dataset.theme === choice)
     })
-
-    // Star-history chart follows the theme; both variants stay warm in cache
-    const chart = document.getElementById('star-history-chart')
-    const preload = document.getElementById('star-history-preload')
-    if (chart && preload) {
-      const base =
-        'https://api.star-history.com/chart?repos=AnInsomniacy/motrix-next&type=date&legend=top-left'
-      const darkUrl = base + '&theme=dark'
-      const wantDark = effective === 'dark'
-      chart.src = wantDark ? darkUrl : base
-      preload.src = wantDark ? base : darkUrl
-      const frame = chart.closest('.star-history-frame')
-      if (frame && chart.complete && chart.naturalWidth > 0) frame.classList.add('loaded')
-    }
   }
 
   applyTheme(getStored())

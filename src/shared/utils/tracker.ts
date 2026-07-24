@@ -73,7 +73,8 @@ export const convertTrackerDataToLine = (arr: string[] = []): string => {
   const lines = arr
     .join('\r\n')
     .split(/\r?\n/)
-    .filter((line) => line.trim() !== '')
+    .map((line) => line.trim())
+    .filter(Boolean)
   return [...new Set(lines)].join('\r\n')
 }
 

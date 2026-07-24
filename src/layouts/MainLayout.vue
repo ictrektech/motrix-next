@@ -24,16 +24,11 @@ import type { Aria2Task } from '@shared/types'
 import { ARIA2_ERROR_CODES } from '@shared/aria2ErrorCodes'
 import { TASK_STATUS } from '@shared/constants'
 import { useHistoryStore } from '@/stores/history'
+import { buildSelectFileOption, getPendingMagnetSelectionGids } from '@/composables/useMagnetFlow'
+import type { MagnetFileItem, MagnetSelectionSubmission } from '@/composables/useMagnetFlow'
 import {
-  buildSelectFileOption,
-  buildStatusAwareConfirmAction,
-  getPendingMagnetSelectionGids,
-} from '@/composables/useMagnetFlow'
-import type { MagnetFileItem } from '@/composables/useMagnetFlow'
-import {
+  createMagnetMetadataResolver,
   listenForAria2DownloadComplete,
-  resolveNextPendingMagnetMetadata,
-  resolvePendingMagnetMetadata,
   type MagnetMetadataState,
 } from '@/composables/useMagnetMetadataEvents'
 import aria2Api from '@/api/aria2'
@@ -212,6 +207,8 @@ const magnetSelectVisible = ref(false)
 const magnetSelectFiles = ref<MagnetFileItem[]>([])
 const magnetSelectionSession = ref<MagnetSelectionSession | null>(null)
 const magnetSelectName = ref('')
+const magnetSelectSubmission = ref<MagnetSelectionSubmission>(null)
+const magnetSelectClosing = ref(false)
 
 const { setupListeners } = useAppEvents({
   t,
@@ -304,17 +301,11 @@ function stopStatListener() {
 
 // ── Magnet metadata monitoring (app-level) ──────────────────────────
 
-async function resolvePendingMagnet(gid: string): Promise<boolean> {
-  return resolvePendingMagnetMetadata(magnetMetadataDeps(), gid)
-}
-
-async function resolveNextPendingMagnet() {
-  await resolveNextPendingMagnetMetadata(magnetMetadataDeps())
-}
+const magnetMetadataResolver = createMagnetMetadataResolver(magnetMetadataDeps)
 
 async function startAria2DownloadCompleteListener() {
   stopAria2DownloadCompleteListener()
-  unlistenAria2DownloadComplete = await listenForAria2DownloadComplete(resolvePendingMagnet)
+  unlistenAria2DownloadComplete = await listenForAria2DownloadComplete((gid) => magnetMetadataResolver.request(gid))
 }
 
 function stopAria2DownloadCompleteListener() {
@@ -358,6 +349,7 @@ function magnetMetadataDeps() {
   return {
     state,
     fetchTaskStatus: taskStore.fetchTaskStatus,
+    fetchPendingTasks: () => aria2Api.fetchTaskList({ type: 'active' }),
     getFiles: taskStore.getFiles,
     fallbackName: () => t('task.magnet-task'),
   }
@@ -377,59 +369,56 @@ async function restorePendingMagnetSelections() {
 }
 
 async function handleMagnetConfirm(selectedIndices: number[]) {
-  magnetSelectVisible.value = false
-  const gid = magnetSelectionSession.value?.downloadGid
-  if (!gid) return
+  if (magnetSelectSubmission.value !== null) return
+  const session = magnetSelectionSession.value
+  if (!session) return
 
+  magnetSelectSubmission.value = 'confirm'
   try {
     const selectFile = buildSelectFileOption(selectedIndices)
-    const task = await taskStore.fetchTaskStatus(gid)
-    const action = buildStatusAwareConfirmAction(task.status)
-    if (task.status === TASK_STATUS.ACTIVE) {
-      throw new Error('Magnet content task started before file selection')
-    }
-
-    await taskStore.changeTaskOption({ gid, options: { 'select-file': selectFile } })
-
-    if (action.needsResume) {
-      await taskStore.resumeTask(task)
-    }
+    const task = await taskStore.fetchTaskStatus(session.downloadGid)
+    await taskStore.applyMagnetFileSelection(task, selectFile)
+    appStore.pendingMagnetGids = appStore.pendingMagnetGids.filter((gid) => gid !== session.metadataGid)
+    magnetSelectClosing.value = true
+    magnetSelectVisible.value = false
+    magnetSelectionSession.value = null
+    magnetSelectFiles.value = []
+    magnetSelectName.value = ''
     message.success(t('task.magnet-files-selected') || 'Files selected, download starting')
   } catch (e) {
     logger.error('MainLayout.magnetConfirm', e)
     message.error(t('task.magnet-select-fail') || 'Failed to configure download')
   } finally {
-    magnetSelectionSession.value = null
-    magnetSelectFiles.value = []
-    magnetSelectName.value = ''
-  }
-
-  // Delay to let the modal close animation finish before showing the next dialog.
-  if (appStore.pendingMagnetGids.length > 0) {
-    setTimeout(() => void resolveNextPendingMagnet(), 350)
+    magnetSelectSubmission.value = null
   }
 }
 
 async function handleMagnetCancel() {
-  magnetSelectVisible.value = false
+  if (magnetSelectSubmission.value !== null) return
   const session = magnetSelectionSession.value
-  magnetSelectionSession.value = null
-  magnetSelectFiles.value = []
-  magnetSelectName.value = ''
   if (!session) return
 
+  magnetSelectSubmission.value = 'cancel'
   try {
     await taskStore.cancelMagnetSelectionDownload(session)
+    appStore.pendingMagnetGids = appStore.pendingMagnetGids.filter((gid) => gid !== session.metadataGid)
+    magnetSelectClosing.value = true
+    magnetSelectVisible.value = false
+    magnetSelectionSession.value = null
+    magnetSelectFiles.value = []
+    magnetSelectName.value = ''
+    message.info(t('task.magnet-download-cancelled') || 'Download cancelled')
   } catch (e) {
-    // Task may already be removed — log at debug level for diagnostics
-    logger.debug('MainLayout.magnetCancel', e)
+    logger.error('MainLayout.magnetCancel', e)
+  } finally {
+    magnetSelectSubmission.value = null
   }
-  message.info(t('task.magnet-download-cancelled') || 'Download cancelled')
+}
 
-  // Delay to let the modal close animation finish before showing the next dialog.
-  if (appStore.pendingMagnetGids.length > 0) {
-    setTimeout(() => void resolveNextPendingMagnet(), 350)
-  }
+function handleMagnetSelectAfterLeave() {
+  if (!magnetSelectClosing.value) return
+  magnetSelectClosing.value = false
+  if (appStore.pendingMagnetGids.length > 0) void magnetMetadataResolver.request()
 }
 
 /**
@@ -856,7 +845,7 @@ onMounted(async () => {
   stopPendingMagnetWatch = watch(
     () => appStore.pendingMagnetGids,
     (gids) => {
-      if (gids.length > 0) void resolveNextPendingMagnet()
+      if (gids.length > 0 && !magnetSelectClosing.value) void magnetMetadataResolver.request()
     },
     { immediate: true },
   )
@@ -1042,15 +1031,17 @@ onUnmounted(() => {
       :show="magnetSelectVisible"
       :files="magnetSelectFiles"
       :task-name="magnetSelectName"
+      :submission="magnetSelectSubmission"
       @confirm="handleMagnetConfirm"
       @cancel="handleMagnetCancel"
+      @after-leave="handleMagnetSelectAfterLeave"
     />
 
     <!-- Close action dialog: minimize-to-tray / quit / cancel -->
     <NModal
       :show="showExitDialog"
       preset="dialog"
-      type="warning"
+      type="default"
       :title="t('app.close-action-title')"
       :closable="true"
       :mask-closable="true"
@@ -1192,7 +1183,7 @@ onUnmounted(() => {
   left: 0;
   height: 2px;
   width: 30%;
-  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  background: linear-gradient(90deg, transparent, var(--m3-primary), transparent);
   animation: engine-indeterminate 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   will-change: transform;
   contain: layout style paint;

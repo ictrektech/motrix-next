@@ -214,123 +214,21 @@ export const BUILTIN_CATEGORY_LABELS: ReadonlySet<string> = new Set(BUILTIN_CATE
  *  and REGISTERED_VERSIONS in src-tauri/src/db_guard.rs. */
 export const CURRENT_DB_SCHEMA_VERSION = 3
 
-/**
- * @see https://github.com/ngosang/trackerslist
- */
-export const NGOSANG_TRACKERS_BEST_URL =
-  'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt'
-export const NGOSANG_TRACKERS_BEST_IP_URL =
-  'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best_ip.txt'
-export const NGOSANG_TRACKERS_ALL_URL = 'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all.txt'
-export const NGOSANG_TRACKERS_ALL_IP_URL =
-  'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all_ip.txt'
-
-export const NGOSANG_TRACKERS_BEST_URL_CDN = 'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_best.txt'
-export const NGOSANG_TRACKERS_BEST_IP_URL_CDN = 'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_best_ip.txt'
-export const NGOSANG_TRACKERS_ALL_URL_CDN = 'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_all.txt'
-export const NGOSANG_TRACKERS_ALL_IP_URL_CDN = 'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_all_ip.txt'
-
-/**
- * @see https://github.com/XIU2/TrackersListCollection
- */
-export const XIU2_TRACKERS_BEST_URL = 'https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/best.txt'
-export const XIU2_TRACKERS_ALL_URL = 'https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/all.txt'
-export const XIU2_TRACKERS_HTTP_URL = 'https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/http.txt'
-
-export const XIU2_TRACKERS_BEST_URL_CDN = 'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/best.txt'
-export const XIU2_TRACKERS_ALL_URL_CDN = 'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/all.txt'
-export const XIU2_TRACKERS_HTTP_URL_CDN = 'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/http.txt'
-
-// For bt-exclude-tracker
-export const XIU2_TRACKERS_BLACK_URL = 'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/blacklist.txt'
-
+/** Official, independently hosted tracker-list sources. */
 export const TRACKER_SOURCE_OPTIONS = [
   {
-    label: 'ngosang/trackerslist',
-    options: [
-      {
-        value: NGOSANG_TRACKERS_BEST_URL,
-        label: 'trackers_best.txt',
-        cdn: false,
-      },
-      {
-        value: NGOSANG_TRACKERS_BEST_IP_URL,
-        label: 'trackers_best_ip.txt',
-        cdn: false,
-      },
-      {
-        value: NGOSANG_TRACKERS_ALL_URL,
-        label: 'trackers_all.txt',
-        cdn: false,
-      },
-      {
-        value: NGOSANG_TRACKERS_ALL_IP_URL,
-        label: 'trackers_all_ip.txt',
-        cdn: false,
-      },
-      {
-        value: NGOSANG_TRACKERS_BEST_URL_CDN,
-        label: 'trackers_best.txt',
-        cdn: true,
-      },
-      {
-        value: NGOSANG_TRACKERS_BEST_IP_URL_CDN,
-        label: 'trackers_best_ip.txt',
-        cdn: true,
-      },
-      {
-        value: NGOSANG_TRACKERS_ALL_URL_CDN,
-        label: 'trackers_all.txt',
-        cdn: true,
-      },
-      {
-        value: NGOSANG_TRACKERS_ALL_IP_URL_CDN,
-        label: 'trackers_all_ip.txt',
-        cdn: true,
-      },
-    ],
+    owner: 'ngosang',
+    repository: 'trackerslist',
+    value: 'https://ngosang.github.io/trackerslist/trackers_best.txt',
   },
   {
-    label: 'XIU2/TrackersListCollection',
-    options: [
-      {
-        value: XIU2_TRACKERS_BEST_URL,
-        label: 'best.txt',
-        cdn: false,
-      },
-      {
-        value: XIU2_TRACKERS_ALL_URL,
-        label: 'all.txt',
-        cdn: false,
-      },
-      {
-        value: XIU2_TRACKERS_HTTP_URL,
-        label: 'http.txt',
-        cdn: false,
-      },
-      {
-        value: XIU2_TRACKERS_BEST_URL_CDN,
-        label: 'best.txt',
-        cdn: true,
-      },
-      {
-        value: XIU2_TRACKERS_ALL_URL_CDN,
-        label: 'all.txt',
-        cdn: true,
-      },
-      {
-        value: XIU2_TRACKERS_HTTP_URL_CDN,
-        label: 'http.txt',
-        cdn: true,
-      },
-    ],
+    owner: 'XIU2',
+    repository: 'TrackersListCollection',
+    value: 'https://cf.trackerslist.com/best.txt',
   },
 ] as const
 
-/** Sensible default tracker sources for first install (all CDN endpoints). */
-export const DEFAULT_TRACKER_SOURCE = TRACKER_SOURCE_OPTIONS.flatMap((group) =>
-  group.options.filter((option) => option.cdn).map((option) => option.value),
-)
+export const DEFAULT_TRACKER_SOURCE = TRACKER_SOURCE_OPTIONS.map((source) => source.value)
 
 export const DEFAULT_APP_CONFIG = {
   configVersion: 5,

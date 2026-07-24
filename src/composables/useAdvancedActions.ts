@@ -165,7 +165,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
   function handleManualRestart(rpcListenPort: number, rpcSecret: string) {
     const port = rpcListenPort || ENGINE_RPC_PORT
     const secret = rpcSecret || ''
-    const d = dialog.warning({
+    const d = dialog.info({
       title: t('preferences.engine-restart-title'),
       content: t('preferences.engine-restart-manual-confirm'),
       positiveText: t('preferences.engine-restart-now'),
@@ -183,7 +183,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
   }
 
   function handleSessionReset() {
-    dialog.warning({
+    dialog.error({
       title: t('preferences.clear-all-tasks'),
       content: t('preferences.clear-all-tasks-confirm'),
       positiveText: t('app.yes'),
@@ -210,7 +210,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
   }
 
   function handleRestoreDefaults() {
-    dialog.warning({
+    dialog.error({
       title: t('preferences.restore-defaults'),
       content: t('preferences.restore-defaults-confirm'),
       positiveText: t('preferences.restore-defaults'),
@@ -433,7 +433,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
   }
 
   function handleClearLog() {
-    dialog.warning({
+    dialog.error({
       title: t('preferences.clear-log'),
       content: t('preferences.clear-log-confirm'),
       positiveText: t('app.yes'),
