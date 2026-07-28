@@ -80,7 +80,9 @@ https://<vos-host>:1180/app/com.ictrek.motrix-next/
 
 ## 路由
 
-`routers.yml` 使用完整的 group/page 结构。真实可见页面继续作为 VOS iframe 页面，并保留 `entry-point: true` 和 `embed: true`。为兼容仍读取 `frontend_base_path` 的旧“打开”按钮，Compose/Traefik 会把顶层文档请求 `/app/com.ictrek.motrix-next/` 重定向到 VOS hash；iframe 请求不重定向。Motrix Next 的固定入口契约是：
+`manifest.yml` 保留 `frontend.enabled: true` 和 `frontend.basePath: /app/com.ictrek.motrix-next`，用于兼容当前仍从应用列表读取 `frontend_enabled/frontend_base_path` 的 VOS“我的应用”打开按钮。
+
+`routers.yml` 使用完整的 group/page 结构。真实可见页面继续作为 VOS iframe 页面，并保留 `entry-point: true` 和 `embed: true`。Compose/Traefik 会把顶层文档请求 `/app/com.ictrek.motrix-next/` 重定向到 VOS hash；iframe 请求不重定向。Motrix Next 的固定入口契约是：
 
 - `app id`: `com.ictrek.motrix-next`
 - `group.id`: `com-ictrek-motrix-next`

@@ -7,6 +7,7 @@ ROUTER_GROUP_ID="com-ictrek-motrix-next"
 ROUTER_PAGE_ID="downloads"
 ROUTER_IFRAME_SRC="/app/com.ictrek.motrix-next/"
 ROUTER_HASH_PATH="#/app/com.ictrek.motrix-next/com-ictrek-motrix-next/downloads"
+FRONTEND_BASE_PATH="/app/com.ictrek.motrix-next"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
 FEISHU_FALLBACK_CONFIG_FILE="${FEISHU_FALLBACK_CONFIG_FILE:-${HOME}/.feishu.json}"
@@ -274,6 +275,7 @@ verify_package() {
   local package_path="$1"
   local app_tarball="$2"
   local package_text
+  local manifest_text
   local routers_text
   local compose_text
   local sidebar_route
@@ -285,6 +287,16 @@ verify_package() {
   package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
   if printf '%s' "$package_text" | grep -q '__[A-Z0-9_]\+__'; then
     die "unrendered placeholder remains"
+  fi
+  manifest_text="$(tar xOf "$app_tarball" manifest.yml)"
+  if ! printf '%s\n' "$manifest_text" | grep -q '^[[:space:]]*frontend:[[:space:]]*$'; then
+    die "manifest.yml must declare frontend for VOS open button compatibility"
+  fi
+  if ! printf '%s\n' "$manifest_text" | grep -q '^[[:space:]]*enabled:[[:space:]]*true[[:space:]]*$'; then
+    die "manifest.yml frontend.enabled must be true"
+  fi
+  if ! printf '%s\n' "$manifest_text" | grep -Fq "  basePath: ${FRONTEND_BASE_PATH}"; then
+    die "manifest.yml frontend.basePath must be ${FRONTEND_BASE_PATH}"
   fi
   compose_text="$(tar xOf "$app_tarball" docker-compose.yml)"
   if printf '%s\n' "$compose_text" | grep -q '\${[^}]*_IMAGE[^}]*}'; then
