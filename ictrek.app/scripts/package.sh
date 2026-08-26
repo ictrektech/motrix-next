@@ -282,9 +282,10 @@ verify_package() {
   log "Verify app.tar.gz contents"
   tar tzf "$app_tarball" >/dev/null
   tar tzf "$app_tarball" | grep -qx "manifest.yml"
+  tar tzf "$app_tarball" | grep -qx "icon.png"
   tar tf "$package_path" | grep -qx "app.tar.gz"
   ! tar tf "$package_path" | grep -q "^assets/"
-  package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
+  package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ || "$file" == "icon.png" ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
   if printf '%s' "$package_text" | grep -q '__[A-Z0-9_]\+__'; then
     die "unrendered placeholder remains"
   fi
@@ -297,6 +298,9 @@ verify_package() {
   fi
   if ! printf '%s\n' "$manifest_text" | grep -Fq "  basePath: ${FRONTEND_BASE_PATH}"; then
     die "manifest.yml frontend.basePath must be ${FRONTEND_BASE_PATH}"
+  fi
+  if ! printf '%s\n' "$manifest_text" | grep -q '^[[:space:]]*icon:[[:space:]]*icon.png[[:space:]]*$'; then
+    die "manifest.yml must declare icon.png"
   fi
   compose_text="$(tar xOf "$app_tarball" docker-compose.yml)"
   if printf '%s\n' "$compose_text" | grep -q '\${[^}]*_IMAGE[^}]*}'; then
@@ -407,6 +411,7 @@ for file in manifest.yml configs.yml routers.yml README.zh-CN.md README.en.md; d
     render_text_file "${SRC_DIR}/${file}" "${STAGE_DIR}/${file}"
   fi
 done
+cp "${SRC_DIR}/icon.png" "${STAGE_DIR}/icon.png"
 render_compose_file "${SRC_DIR}/docker-compose.yml" "${STAGE_DIR}/docker-compose.yml" "$ENV_FILE"
 
 
@@ -416,7 +421,7 @@ PACKAGE_PATH="${DIST_DIR}/${PACKAGE_NAME}"
 
 rm -rf "$PACKAGE_ROOT"
 mkdir -p "$PACKAGE_ROOT"
-TAR_FILES=(.env manifest.yml docker-compose.yml configs.yml routers.yml README.zh-CN.md)
+TAR_FILES=(.env manifest.yml docker-compose.yml configs.yml routers.yml icon.png README.zh-CN.md)
 [[ -f "${STAGE_DIR}/README.en.md" ]] && TAR_FILES+=(README.en.md)
 tar czf "$APP_TARBALL" -C "$STAGE_DIR" "${TAR_FILES[@]}"
 cp "$APP_TARBALL" "${PACKAGE_ROOT}/app.tar.gz"
