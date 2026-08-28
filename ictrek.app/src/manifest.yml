@@ -35,8 +35,3 @@ profiles:
       zh-CN: ARM64 平台，使用 ARM_with_cuda 发布表中的 Motrix 镜像。
       en: ARM64 platform, using the Motrix image from the ARM_with_cuda sheet.
     conflicts: [amd]
-
-storage:
-  directories:
-    - path: downloads
-      mode: "0755"
