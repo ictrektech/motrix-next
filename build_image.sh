@@ -508,11 +508,22 @@ log "TARGET_SHEETS=${TARGET_SHEETS[*]}"
 log "IMG_NAME=${IMG_NAME}"
 log "TAG=${TAG}"
 
-DOCKER_BUILDKIT=1 docker build \
-  --platform "${PLATFORM}" \
-  -t "${IMG_NAME}" \
-  -t "${IMAGE_URI}" \
-  -f "${DOCKERFILE}" .
+if docker buildx version >/dev/null 2>&1; then
+  docker buildx build \
+    --load \
+    --provenance=false \
+    --sbom=false \
+    --platform "${PLATFORM}" \
+    -t "${IMG_NAME}" \
+    -t "${IMAGE_URI}" \
+    -f "${DOCKERFILE}" .
+else
+  DOCKER_BUILDKIT=0 docker build \
+    --platform "${PLATFORM}" \
+    -t "${IMG_NAME}" \
+    -t "${IMAGE_URI}" \
+    -f "${DOCKERFILE}" .
+fi
 
 docker push "${IMAGE_URI}"
 
