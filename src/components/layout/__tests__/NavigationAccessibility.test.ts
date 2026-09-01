@@ -5,7 +5,7 @@ import { reactive } from 'vue'
 const pushMock = vi.fn(() => Promise.resolve())
 const showAddTaskDialogMock = vi.fn()
 const routeState = reactive({
-  path: '/task/active',
+  path: '/task/progress',
 })
 
 vi.mock('vue-i18n', () => ({
@@ -35,10 +35,10 @@ vi.mock('@/stores/app', () => ({
   }),
 }))
 
-vi.mock('@/stores/history', () => ({
-  useHistoryStore: () => ({
-    recordTotal: 5,
-    refreshRecordTotal: vi.fn().mockResolvedValue(5),
+vi.mock('@/stores/task', () => ({
+  useTaskStore: () => ({
+    taskCounts: { all: 8, progress: 3, failed: 1, completed: 4 },
+    refreshTaskCounts: vi.fn().mockResolvedValue(undefined),
   }),
 }))
 
@@ -62,6 +62,7 @@ vi.mock('@vicons/ionicons5', () => ({
   SettingsOutline: { template: '<i />' },
   HelpCircleOutline: { template: '<i />' },
   PlayOutline: { template: '<i />' },
+  AlertCircleOutline: { template: '<i />' },
   CheckmarkDoneOutline: { template: '<i />' },
   ConstructOutline: { template: '<i />' },
   DownloadOutline: { template: '<i />' },
@@ -77,7 +78,7 @@ import PreferenceSubnav from '../PreferenceSubnav.vue'
 describe('keyboard-accessible navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    routeState.path = '/task/active'
+    routeState.path = '/task/progress'
   })
 
   it('renders AsideBar actions as keyboard-focusable buttons', async () => {
@@ -106,13 +107,11 @@ describe('keyboard-accessible navigation', () => {
     const wrapper = mount(TaskSubnav)
     const buttons = wrapper.findAll('button')
 
-    // 3 buttons: all, active, stopped
-    expect(buttons).toHaveLength(3)
-    // Route is /task/active, so the 'active' button (index 1) is current
+    expect(buttons).toHaveLength(4)
     expect(buttons[1].attributes('aria-current')).toBe('page')
 
     await buttons[2].trigger('click')
-    expect(pushMock).toHaveBeenCalledWith({ path: '/task/stopped' })
+    expect(pushMock).toHaveBeenCalledWith({ path: '/task/failed' })
   })
 
   it('renders PreferenceSubnav routes as buttons and marks the active route', async () => {

@@ -81,7 +81,7 @@ src-tauri/
 │   ├── engine/
 │   │   ├── mod.rs              # Module re-exports
 │   │   ├── lifecycle.rs        # aria2 sidecar start/stop/restart
-│   │   ├── args.rs             # aria2 command-line argument builder
+│   │   ├── config.rs           # Managed runtime aria2.conf generation
 │   │   ├── cleanup.rs          # Engine cleanup utilities
 │   │   └── state.rs            # Engine state management
 │   ├── services/
@@ -93,7 +93,6 @@ src-tauri/
 │   │   ├── http_api.rs         # Local HTTP API server for browser extensions
 │   │   ├── monitor.rs          # Task lifecycle monitor, history DB persistence, event emission
 │   │   ├── notification.rs     # Native notification dispatch service
-│   │   ├── notification_i18n.rs # Localised notification strings
 │   │   ├── port_guard.rs       # Runtime port conflict detection and recovery
 │   │   ├── power.rs            # Sleep prevention and power guard service
 │   │   ├── stat.rs             # Global stat polling, Dock badge, Dock progress bar (custom NSProgressIndicator)
@@ -101,10 +100,12 @@ src-tauri/
 │   ├── db_guard.rs             # Database health check, corruption detection, and auto-rebuild
 │   ├── gpu_guard.rs            # GPU compatibility detection and WebView renderer fallback
 │   ├── history.rs              # HistoryDbState: Rust-side SQLite history record persistence
+│   ├── i18n.rs                 # Native locale negotiation and rust-i18n message access
 │   ├── error.rs                # AppError enum (Store, Engine, Io, NotFound, Updater, Upnp)
 │   ├── menu.rs                 # Native menu builder (macOS only, cfg-gated)
 │   ├── tray.rs                 # System tray setup + native event handling (lightweight mode safe)
 │   └── upnp.rs                 # UPnP/IGD port mapping with renewal loop
+├── locales/                    # Compile-time embedded native JSON translations
 ├── migrations/
 │   ├── 001_download_history.sql  # Initial history table schema
 │   ├── 002_add_added_at.sql      # Added added_at column + task_birth table
@@ -269,8 +270,9 @@ The hooks file defines three injection points:
 ### Rules
 
 1. **NEVER edit locale files manually one by one.** Always use a Python batch script.
-2. Strings containing `'` must be escaped as `\'` in JS source files.
-3. English (`en-US`) keys serve as the fallback — always verify this locale first.
+2. Every locale owns one `messages.json`; preserve its nested namespaces and placeholders.
+3. English (`en-US`) is the schema and fallback — always verify it first.
+4. Register locale metadata in `src/shared/locales/catalog.json` and native strings in `src-tauri/locales/<locale>.json`.
 
 ### 27 Locale Directories
 
@@ -283,9 +285,10 @@ ar bg ca de el en-US es fa fr hi hu id it ja ko nb nl pl pt-BR ro ru th tr uk vi
 ```python
 #!/usr/bin/env python3
 """Batch-update locale files with native translations."""
-import os, re
+import json
+from pathlib import Path
 
-LOCALES_DIR = "src/shared/locales"
+LOCALES_DIR = Path("src/shared/locales")
 
 TRANSLATIONS = {
     "ar":    ("Arabic text",),
@@ -297,20 +300,16 @@ TRANSLATIONS = {
 }
 
 def update_locale(locale_dir, values):
-    filepath = os.path.join(LOCALES_DIR, locale_dir, "preferences.js")
-    with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
-    # Use regex or string replacement to insert/update keys
-    # Escape single quotes in values: value.replace("'", "\\'")
-    # Write back
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(content)
+    filepath = LOCALES_DIR / locale_dir / "messages.json"
+    messages = json.loads(filepath.read_text(encoding="utf-8"))
+    messages["preferences"]["new-key"] = values[0]
+    filepath.write_text(json.dumps(messages, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 for locale, vals in sorted(TRANSLATIONS.items()):
     update_locale(locale, vals)
 ```
 
-> **Critical:** After running, verify with `npx vite build` — locale parse errors will surface here.
+> **Critical:** After running, verify with `pnpm lint`, `pnpm check:repo`, `npx vue-tsc --noEmit`, and `npx vite build`.
 
 ---
 
@@ -465,7 +464,7 @@ Two parallel jobs:
 | Job        | Steps                                                                                                                        |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `frontend` | `pnpm install` → `pnpm lint` → `pnpm format:check` → `vue-tsc --noEmit` → `vitest run` → `vite build`                        |
-| `backend`  | `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo check --all-targets` → `cargo test --all-targets` |
+| `backend`  | `cargo fmt --all -- --check` → `pnpm build:native-launcher` → `cargo clippy --workspace --all-targets -- -D warnings` → `cargo check --workspace --all-targets` → `cargo test --workspace --all-targets` |
 
 ### `release.yml` (Release Published)
 
@@ -498,6 +497,12 @@ Two parallel jobs:
 - **No utility frameworks** — vanilla CSS with component-scoped styles
 - **Motion**: Material Design 3 asymmetric timing and emphasized easing curves
 
+### Color System
+
+Motrix Next uses a dynamic Material Design 3 color system generated by `@material/material-color-utilities`. `src/shared/utils/colorScheme.ts` is the single source of truth: a preset or custom seed produces the complete light and dark palettes. Primary and tertiary provide theme accents; info, success, warning, and error are harmonized semantic colors. Each role includes color, matching foreground, container, container foreground, hover, and pressed values. Neutral surfaces use the ordered `surface` and `surface-container-*` roles, while text and borders use `on-surface*` and `outline*`.
+
+`src/composables/useColorScheme.ts` is the only bridge to consumers. It maps the generated tokens to CSS variables, Naive UI overrides, and reactive Canvas consumers. Task status colors are aliases of the same roles: active uses primary, waiting uses info, paused uses outline, error uses error, and complete or sharing uses success. `src/styles/tokens.css` contains first-paint fallbacks only; runtime values replace them after startup. Components must consume semantic tokens instead of fixed colors. Fixed colors are limited to platform-defined controls, brand artwork, and color-picker swatches.
+
 ---
 
 ## H. Verification Commands
@@ -514,8 +519,9 @@ pnpm check:repo            # Locale parity + i18n literal-key usage (CI runs thi
 npx vue-tsc --noEmit       # TypeScript type checking
 
 # Backend
-cargo check --all-targets  # Fast compilation check
-cargo test --all-targets   # Rust unit tests
+pnpm build:native-launcher       # Build the target-specific Native Messaging sidecar
+cargo check --workspace --all-targets  # Fast compilation check
+cargo test --workspace --all-targets   # Rust unit tests
 
 # Version (when bumping)
 ./scripts/bump-version.sh <version>
@@ -531,4 +537,4 @@ All fast checks must pass with zero errors before any PR or release.
 
 ## I. Testing Constraints
 
-> **DO NOT use browser tools (Playwright, browser subagent, etc.) to test this app.** Tauri renders in a native webview — `localhost:1420` in a browser lacks IPC, tray, and sidecar access. Use CLI checks (`vue-tsc`, `pnpm test`, `cargo test --all-targets`) or ask the user to verify UI via `pnpm tauri dev`.
+> **DO NOT use browser tools (Playwright, browser subagent, etc.) to test this app.** Tauri renders in a native webview — `localhost:1420` in a browser lacks IPC, tray, and sidecar access. Use CLI checks (`vue-tsc`, `pnpm test`, `cargo test --workspace --all-targets`) or ask the user to verify UI via `pnpm tauri dev`.

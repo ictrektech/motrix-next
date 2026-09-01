@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview Two-line compact task row with the same actions as the full card. */
-import { computed, ref, watch, onBeforeUnmount } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TASK_STATUS } from '@shared/constants'
 import { NIcon, NProgress } from 'naive-ui'
@@ -13,17 +13,20 @@ import TaskItemActions from './TaskItemActions.vue'
 import type { Component } from 'vue'
 import type { Aria2Task } from '@shared/types'
 
-const props = defineProps<{ task: Aria2Task }>()
+const props = withDefaults(defineProps<{ task: Aria2Task; actionPending?: boolean }>(), { actionPending: false })
 const emit = defineEmits<{
   pause: [task: Aria2Task]
   resume: [task: Aria2Task]
+  retry: [task: Aria2Task]
+  redownload: [task: Aria2Task]
+  'finish-sharing': [task: Aria2Task]
   delete: [task: Aria2Task]
   'delete-record': [task: Aria2Task]
   'copy-link': [task: Aria2Task]
   'show-info': [task: Aria2Task]
   folder: [task: Aria2Task]
   'open-file': [task: Aria2Task]
-  'stop-sharing': [task: Aria2Task]
+  'select-files': [task: Aria2Task]
 }>()
 
 const { t } = useI18n()
@@ -80,63 +83,19 @@ const compactStatus = computed<{ label: string; tone: string; icon: Component } 
   }
 })
 
-function onDblClick() {
-  if (isSharing.value) return
-  const s = props.task.status
-  if (s === TASK_STATUS.COMPLETE) {
-    emit('open-file', props.task)
-    return
-  }
-  if (s === TASK_STATUS.ACTIVE || s === TASK_STATUS.WAITING) emit('pause', props.task)
-  else if (s === TASK_STATUS.PAUSED) emit('resume', props.task)
-}
-
 const sharingEnter = ref(false)
 watch(isSharing, (now, was) => {
   if (now && !was) sharingEnter.value = true
-})
-
-const CARD_PRESS_MS = 180
-let cardPressStart = 0
-let cardPressTimer: ReturnType<typeof setTimeout> | null = null
-const cardRef = ref<HTMLElement | null>(null)
-
-function onCardPress() {
-  if (cardPressTimer) clearTimeout(cardPressTimer)
-  cardPressStart = Date.now()
-  cardRef.value?.classList.add('pressed')
-}
-
-function onCardRelease() {
-  const elapsed = Date.now() - cardPressStart
-  const remainingMs = Math.max(0, CARD_PRESS_MS - elapsed)
-  cardPressTimer = setTimeout(() => {
-    cardRef.value?.classList.remove('pressed')
-    cardPressTimer = null
-  }, remainingMs)
-}
-
-onBeforeUnmount(() => {
-  if (cardPressTimer) {
-    clearTimeout(cardPressTimer)
-    cardPressTimer = null
-  }
 })
 </script>
 
 <template>
   <div
-    ref="cardRef"
     class="task-compact-item"
     :class="{
-      'file-missing': fileMissing,
       'is-sharing': isSharing,
       'sharing-enter': sharingEnter,
     }"
-    @dblclick="onDblClick"
-    @pointerdown="onCardPress"
-    @pointerup="onCardRelease"
-    @pointerleave="onCardRelease"
     @animationend="sharingEnter = false"
   >
     <TaskDragHandle class="compact-drag-rail" />
@@ -150,18 +109,21 @@ onBeforeUnmount(() => {
         </MTooltip>
         <TaskItemActions
           :task="task"
-          :status="taskStatus"
           :file-missing="fileMissing"
+          :pending="actionPending"
           density="compact"
           @pause="emit('pause', task)"
           @resume="emit('resume', task)"
+          @retry="emit('retry', task)"
+          @redownload="emit('redownload', task)"
+          @finish-sharing="emit('finish-sharing', task)"
           @delete="emit('delete', task)"
           @delete-record="emit('delete-record', task)"
           @copy-link="emit('copy-link', task)"
           @show-info="emit('show-info', task)"
           @folder="emit('folder', task)"
           @open-file="emit('open-file', task)"
-          @stop-sharing="emit('stop-sharing', task)"
+          @select-files="emit('select-files', task)"
         />
       </div>
       <div class="compact-progress-row">
@@ -226,12 +188,6 @@ onBeforeUnmount(() => {
 .task-compact-item.is-sharing::before {
   opacity: 1;
 }
-.task-compact-item.file-missing {
-  border-color: var(--m3-error);
-}
-.task-compact-item:hover {
-  border-color: var(--task-item-hover-border);
-}
 .task-compact-item:hover .compact-drag-rail {
   opacity: 0.64;
 }
@@ -241,18 +197,6 @@ onBeforeUnmount(() => {
 .compact-body {
   min-width: 0;
   padding: 8px 12px;
-}
-.task-compact-item.pressed {
-  transform: scale(0.98);
-  border-color: var(--m3-primary);
-  transition:
-    transform 0.15s cubic-bezier(0.2, 0, 0, 1),
-    border-color 0.15s;
-}
-.task-compact-item:not(.pressed) {
-  transition:
-    transform 0.35s cubic-bezier(0.05, 0.7, 0.1, 1),
-    border-color 0.3s;
 }
 @keyframes sharing-border-enter {
   from {

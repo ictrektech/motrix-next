@@ -1,0 +1,19 @@
+{
+  "_version": 1,
+  "database-conflict.body": "डाउनलोड इतिहास डेटाबेस Motrix Next के नए संस्करण से बनाया गया है और इस संस्करण के साथ संगत नहीं है।\n\nजारी रखने के लिए डाउनलोड इतिहास रीसेट करना होगा।\nडाउनलोड की गई फ़ाइलों पर कोई असर नहीं पड़ेगा।",
+  "database-conflict.cancel": "बाहर निकलें",
+  "database-conflict.confirm": "रीसेट करके शुरू करें",
+  "database-conflict.title": "डेटाबेस संस्करण असंगत है",
+  "notification.bt-complete-body": "Seeding: %{task_name}",
+  "notification.bt-complete-title": "BT डाउनलोड पूरा हुआ",
+  "notification.download-batch-start-body": "डाउनलोड हो रहा है: %{task_name} और %{count} अन्य task(s)",
+  "notification.download-complete-body": "सहेजा गया: %{task_name}",
+  "notification.download-complete-title": "डाउनलोड पूरा हुआ",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "डाउनलोड विफल",
+  "notification.download-start-body": "डाउनलोड हो रहा है: %{task_name}",
+  "notification.download-start-title": "डाउनलोड शुरू हुआ",
+  "notification.ed2k-complete-body": "Sharing: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K डाउनलोड पूरा हुआ",
+  "notification.error-unknown": "अज्ञात त्रुटि"
+}

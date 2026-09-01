@@ -7,7 +7,6 @@
  * Database: sqlite:history.db (managed by tauri-plugin-sql with migrations).
  */
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
 import Database from '@tauri-apps/plugin-sql'
 import { remove } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
@@ -31,6 +30,11 @@ export interface HistoryRecordsPageInput {
 export interface HistoryRecordsPage {
   records: HistoryRecord[]
   total: number
+}
+
+export interface HistoryStatusCounts {
+  completed: number
+  failed: number
 }
 
 const HISTORY_SORT_COLUMNS: Record<HistoryRecordSortField, string> = {
@@ -76,7 +80,6 @@ export interface DbHealthCallbacks {
 export const useHistoryStore = defineStore('history', () => {
   let db: Awaited<ReturnType<typeof Database.load>> | null = null
   let initPromise: Promise<void> | null = null
-  const recordTotal = ref(0)
 
   /** Apply SQLite PRAGMA optimizations to an open connection. */
   async function applyPragmas(conn: NonNullable<typeof db>): Promise<void> {
@@ -146,12 +149,10 @@ export const useHistoryStore = defineStore('history', () => {
             callbacks?.onCorrupt?.()
             await rebuildDatabase(callbacks)
           }
-          if (db) await refreshRecordTotal()
         } catch (e) {
           logger.warn('HistoryDB', `Init failed: ${e}`)
           callbacks?.onError?.(e)
           await rebuildDatabase(callbacks)
-          if (db) await refreshRecordTotal()
         }
       })()
     }
@@ -164,31 +165,36 @@ export const useHistoryStore = defineStore('history', () => {
     return db!
   }
 
-  async function refreshRecordTotal(): Promise<number> {
+  async function getStatusCounts(): Promise<HistoryStatusCounts> {
     const rows = await (
       await getDb()
-    ).select<Array<{ count: number }>>('SELECT COUNT(*) as count FROM download_history', [])
-    const total = Number(rows[0]?.count ?? 0)
-    recordTotal.value = Number.isFinite(total) ? Math.max(0, total) : 0
-    return recordTotal.value
+    ).select<Array<{ status: string; count: number }>>(
+      "SELECT status, COUNT(*) AS count FROM download_history WHERE status IN ('complete', 'error') GROUP BY status",
+      [],
+    )
+    const counts = new Map(rows.map((row) => [row.status, Number(row.count) || 0]))
+    return {
+      completed: Math.max(0, counts.get('complete') ?? 0),
+      failed: Math.max(0, counts.get('error') ?? 0),
+    }
   }
 
-  async function countRecordsMatchingTaskIdentities(tasks: Aria2Task[]): Promise<number> {
+  async function countRecordsMatchingTaskIdentities(tasks: Aria2Task[], status: 'complete' | 'error'): Promise<number> {
     const identities = collectTaskIdentityBuckets(tasks)
-    const clauses: string[] = []
-    const params: string[] = []
+    const identityClauses: string[] = []
+    const params: string[] = [status]
 
-    appendInClause(clauses, params, 'gid', identities.gids)
-    appendInClause(clauses, params, "json_extract(meta, '$.infoHash')", identities.btInfoHashes)
-    appendInClause(clauses, params, "json_extract(meta, '$.ed2kHash')", identities.ed2kHashes)
-    appendInClause(clauses, params, "json_extract(meta, '$.ed2kLink')", identities.ed2kLinks)
+    appendInClause(identityClauses, params, 'gid', identities.gids)
+    appendInClause(identityClauses, params, "json_extract(meta, '$.infoHash')", identities.btInfoHashes)
+    appendInClause(identityClauses, params, "json_extract(meta, '$.ed2kHash')", identities.ed2kHashes)
+    appendInClause(identityClauses, params, "json_extract(meta, '$.ed2kLink')", identities.ed2kLinks)
 
-    if (clauses.length === 0) return 0
+    if (identityClauses.length === 0) return 0
 
     const rows = await (
       await getDb()
     ).select<Array<{ count: number }>>(
-      `SELECT COUNT(DISTINCT gid) as count FROM download_history WHERE ${clauses.join(' OR ')}`,
+      `SELECT COUNT(DISTINCT gid) as count FROM download_history WHERE status = $1 AND (${identityClauses.join(' OR ')})`,
       params,
     )
     const total = Number(rows[0]?.count ?? 0)
@@ -215,8 +221,16 @@ export const useHistoryStore = defineStore('history', () => {
          status = excluded.status,
          task_type = excluded.task_type,
          added_at = COALESCE(download_history.added_at, excluded.added_at),
-         completed_at = excluded.completed_at,
-         meta = excluded.meta`,
+         completed_at = CASE
+           WHEN download_history.status = 'complete' AND excluded.status = 'complete'
+           THEN COALESCE(download_history.completed_at, excluded.completed_at)
+           ELSE excluded.completed_at
+         END,
+         meta = CASE
+           WHEN download_history.meta IS NULL THEN excluded.meta
+           WHEN excluded.meta IS NULL THEN download_history.meta
+           ELSE json_patch(download_history.meta, excluded.meta)
+         END`,
       [
         record.gid,
         record.name,
@@ -230,7 +244,6 @@ export const useHistoryStore = defineStore('history', () => {
         record.meta ?? null,
       ],
     )
-    await refreshRecordTotal()
   }
 
   /** Retrieve records, optionally filtered by status and/or limited in count.
@@ -287,7 +300,6 @@ export const useHistoryStore = defineStore('history', () => {
   /** Remove a single record by GID. */
   async function removeRecord(gid: string): Promise<void> {
     await (await getDb()).execute('DELETE FROM download_history WHERE gid = $1', [gid])
-    await refreshRecordTotal()
   }
 
   /** Remove task birth timestamps for the provided GIDs. */
@@ -306,7 +318,6 @@ export const useHistoryStore = defineStore('history', () => {
       // VACUUM reclaims disk space and resets AUTOINCREMENT counter
       await (await getDb()).execute('VACUUM', [])
     }
-    await refreshRecordTotal()
   }
 
   /** Remove records whose GIDs are in the provided list (stale file cleanup). */
@@ -314,7 +325,6 @@ export const useHistoryStore = defineStore('history', () => {
     if (gids.length === 0) return
     const placeholders = gids.map((_, i) => `$${i + 1}`).join(', ')
     await (await getDb()).execute(`DELETE FROM download_history WHERE gid IN (${placeholders})`, gids)
-    await refreshRecordTotal()
   }
 
   /** Remove records matching a BT infoHash stored in the meta JSON column.
@@ -339,7 +349,6 @@ export const useHistoryStore = defineStore('history', () => {
         await getDb()
       ).execute(`DELETE FROM download_history WHERE json_extract(meta, '$.infoHash') = $1`, [infoHash])
     }
-    await refreshRecordTotal()
   }
 
   /** Run PRAGMA integrity_check and return the result string. */
@@ -393,8 +402,7 @@ export const useHistoryStore = defineStore('history', () => {
     addRecord,
     getRecords,
     getRecordsPage,
-    recordTotal,
-    refreshRecordTotal,
+    getStatusCounts,
     countRecordsMatchingTaskIdentities,
     getRecordByGid,
     removeRecord,

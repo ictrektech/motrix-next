@@ -15,8 +15,8 @@ import {
   sortRecords,
   applyManualOrder,
   createManualOrderSnapshot,
-  ACTIVE_SORT_FIELDS,
-  STOPPED_SORT_FIELDS,
+  PROGRESS_SORT_FIELDS,
+  TERMINAL_SORT_FIELDS,
   ALL_SORT_FIELDS,
   DEFAULT_TASK_SORT,
   DEFAULT_TASK_MANUAL_ORDER,
@@ -454,12 +454,12 @@ describe('manual task order', () => {
 // ═════════════════════════════════════════════════════════════════════
 
 describe('sort constants', () => {
-  it('ACTIVE_SORT_FIELDS contains exactly 5 fields', () => {
-    expect(ACTIVE_SORT_FIELDS).toEqual(['manual', 'added-at', 'name', 'size', 'progress', 'speed'])
+  it('PROGRESS_SORT_FIELDS contains the progress-specific fields', () => {
+    expect(PROGRESS_SORT_FIELDS).toEqual(['manual', 'added-at', 'name', 'size', 'progress', 'speed'])
   })
 
-  it('STOPPED_SORT_FIELDS contains exactly 4 fields', () => {
-    expect(STOPPED_SORT_FIELDS).toEqual(['manual', 'added-at', 'completed-at', 'name', 'size'])
+  it('TERMINAL_SORT_FIELDS contains the terminal-specific fields', () => {
+    expect(TERMINAL_SORT_FIELDS).toEqual(['manual', 'added-at', 'completed-at', 'name', 'size'])
   })
 
   it('ALL_SORT_FIELDS contains exactly 3 fields', () => {
@@ -468,29 +468,32 @@ describe('sort constants', () => {
 
   it('DEFAULT_TASK_SORT has valid defaults for all tabs', () => {
     expect(DEFAULT_TASK_SORT).toEqual({
-      active: { field: 'added-at', direction: 'desc' },
-      stopped: { field: 'added-at', direction: 'desc' },
       all: { field: 'added-at', direction: 'desc' },
+      progress: { field: 'added-at', direction: 'desc' },
+      failed: { field: 'added-at', direction: 'desc' },
+      completed: { field: 'added-at', direction: 'desc' },
     })
   })
 
   it('DEFAULT_TASK_SORT fields are in their respective field lists', () => {
-    expect(ACTIVE_SORT_FIELDS).toContain(DEFAULT_TASK_SORT.active.field)
-    expect(STOPPED_SORT_FIELDS).toContain(DEFAULT_TASK_SORT.stopped.field)
+    expect(PROGRESS_SORT_FIELDS).toContain(DEFAULT_TASK_SORT.progress.field)
+    expect(TERMINAL_SORT_FIELDS).toContain(DEFAULT_TASK_SORT.failed.field)
+    expect(TERMINAL_SORT_FIELDS).toContain(DEFAULT_TASK_SORT.completed.field)
     expect(ALL_SORT_FIELDS).toContain(DEFAULT_TASK_SORT.all.field)
   })
 
-  it('ALL_SORT_FIELDS is a subset of ACTIVE_SORT_FIELDS', () => {
+  it('ALL_SORT_FIELDS is a subset of PROGRESS_SORT_FIELDS', () => {
     for (const field of ALL_SORT_FIELDS) {
-      expect(ACTIVE_SORT_FIELDS).toContain(field)
+      expect(PROGRESS_SORT_FIELDS).toContain(field)
     }
   })
 
   it('DEFAULT_TASK_MANUAL_ORDER starts empty for every tab', () => {
     expect(DEFAULT_TASK_MANUAL_ORDER).toEqual({
-      active: [],
-      stopped: [],
       all: [],
+      progress: [],
+      failed: [],
+      completed: [],
     })
   })
 })

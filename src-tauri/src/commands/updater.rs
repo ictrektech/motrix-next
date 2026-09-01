@@ -584,14 +584,16 @@ pub async fn apply_update(
     // ── Phase 1: Stop Aria2 Next engine BEFORE installation ─────────────
     // On Windows, NSIS cannot overwrite a running .exe binary.
     // On macOS/Linux this prevents session file corruption.
-    {
-        let app_for_stop = app.clone();
-        tokio::task::spawn_blocking(move || {
-            crate::engine::stop_engine(&app_for_stop, false).map_err(AppError::Engine)
-        })
-        .await
-        .map_err(|e| AppError::Engine(e.to_string()))??;
-    }
+    let supervisor = app
+        .try_state::<crate::engine::supervisor::EngineSupervisor>()
+        .ok_or_else(|| AppError::Engine("EngineSupervisor is not managed".into()))?;
+    supervisor
+        .stop(
+            &app,
+            crate::engine::supervisor::EngineOperationCause::UpdateInstall,
+            false,
+        )
+        .await?;
     log::info!("updater:apply phase=engine-stopped");
 
     let cached = dl_state
@@ -603,53 +605,19 @@ pub async fn apply_update(
     let bytes = cached.bytes;
 
     // ── Phase 2: Install (NSIS / tar.gz replacement) ────────────────
-    // On install failure, restart the engine so download functionality is
-    // restored.  restart_engine() atomically resets intentional_stop,
-    // preventing the crash watcher from being permanently masked.
+    // On install failure, restore download functionality through the sole
+    // engine lifecycle owner.
     if let Err(e) = update.install(bytes) {
         log::warn!("updater:apply install failed, attempting engine recovery: {e}");
-
-        let app_for_restart = app.clone();
-        let recovery = tokio::task::spawn_blocking(move || -> Result<(), String> {
-            let config = super::config::get_system_config(app_for_restart.clone())
-                .map_err(|ce| format!("config read failed: {ce}"))?;
-            crate::engine::restart_engine(&app_for_restart, &config)
-        })
-        .await;
-
-        match recovery {
-            Ok(Ok(())) => {
-                log::info!("updater:apply engine recovered after install failure");
-                let _ = app.emit(
-                    "engine-recovered",
-                    serde_json::json!({ "source": "updater-install-failed" }),
-                );
-            }
-            Ok(Err(engine_err)) => {
-                log::error!("updater:apply engine recovery failed: {engine_err}");
-                let _ = app.emit(
-                    "engine-crashed",
-                    serde_json::json!({ "code": -1, "signal": null }),
-                );
-                return Err(AppError::Updater(format!(
-                    "{}; engine recovery also failed: {}",
-                    e, engine_err
-                )));
-            }
-            Err(join_err) => {
-                log::error!("updater:apply recovery task panicked: {join_err}");
-                let _ = app.emit(
-                    "engine-crashed",
-                    serde_json::json!({ "code": -1, "signal": null }),
-                );
-                return Err(AppError::Updater(format!(
-                    "{}; engine recovery panicked: {}",
-                    e, join_err
-                )));
-            }
-        }
-
-        // Only reached when recovery succeeded — return the original install error
+        supervisor
+            .ensure_running(
+                &app,
+                crate::engine::supervisor::EngineOperationCause::UpdateInstallFailed,
+            )
+            .await
+            .map_err(|engine_error| {
+                AppError::Updater(format!("{e}; engine recovery also failed: {engine_error}"))
+            })?;
         return Err(AppError::Updater(e.to_string()));
     }
     log::info!("updater:apply phase=installed");

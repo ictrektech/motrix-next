@@ -21,6 +21,7 @@ import type { Aria2Task } from '@shared/types'
 import { getTaskDisplayName } from '@shared/utils'
 import type { TaskSharingKind } from '@shared/utils/task'
 import { logger } from '@shared/logger'
+import { summarizeExternalInput } from '@shared/utils/externalInputDiagnostics'
 import { isMetadataTask } from '@/composables/useTaskLifecycle'
 import { renderCompletionToast } from '@/composables/useNotificationToast'
 
@@ -36,7 +37,7 @@ export interface NotifyDeps {
 }
 
 /**
- * Handle a completed HTTP/FTP download.
+ * Handle a completed stream download.
  * Always sends in-app toast. Native OS notification is sent by Rust monitor.
  *
  * When action callbacks are provided, the toast includes inline buttons
@@ -55,7 +56,7 @@ export function handleTaskComplete(task: Aria2Task, deps: NotifyDeps): void {
     onShowInFolder: deps.onShowInFolder ? () => deps.onShowInFolder!(task) : undefined,
   })
   deps.messageSuccess(toastContent)
-  logger.info('TaskNotify.complete', `gid=${task.gid} name="${taskName}"`)
+  logger.debug('TaskNotify.complete', 'completion_toast_shown', { gid: task.gid, task_name: taskName })
 }
 
 /**
@@ -65,7 +66,7 @@ export function handleTaskComplete(task: Aria2Task, deps: NotifyDeps): void {
  * When action callbacks are provided, the toast includes inline buttons
  * for "Open File" and "Show in Folder".
  */
-export function handleSharingComplete(task: Aria2Task, kind: TaskSharingKind, deps: NotifyDeps): void {
+export function handleP2pDownloadComplete(task: Aria2Task, kind: TaskSharingKind, deps: NotifyDeps): void {
   const taskName = getTaskDisplayName(task)
   const bodyKey = kind === 'bt' ? 'task.bt-download-complete-message' : 'task.ed2k-download-complete-message'
   const body = deps.t(bodyKey, { taskName })
@@ -77,7 +78,11 @@ export function handleSharingComplete(task: Aria2Task, kind: TaskSharingKind, de
     onShowInFolder: deps.onShowInFolder ? () => deps.onShowInFolder!(task) : undefined,
   })
   deps.messageSuccess(toastContent)
-  logger.info('TaskNotify.sharingComplete', `gid=${task.gid} kind=${kind} name="${taskName}"`)
+  logger.debug('TaskNotify.p2pDownloadComplete', 'p2p_completion_toast_shown', {
+    gid: task.gid,
+    kind,
+    task_name: taskName,
+  })
 }
 
 /**
@@ -88,7 +93,7 @@ export function handleTaskError(task: Aria2Task, reason: string, deps: NotifyDep
   const taskName = getTaskDisplayName(task, { defaultName: 'Unknown' })
   const body = deps.t('task.download-fail-message', { taskName, reason })
   deps.messageError(body)
-  logger.warn('TaskNotify.error', `gid=${task.gid} error="${body}"`)
+  logger.warn('TaskNotify.error', 'download_error_toast_shown', { gid: task.gid, reason })
 }
 
 // ── Download-start notification ─────────────────────────────────────
@@ -124,5 +129,8 @@ export function handleTaskStart(taskNames: string[], deps: StartNotifyDeps): voi
   Promise.resolve(invoke('send_task_start_notification', { taskNames })).catch((error) =>
     logger.debug('TaskNotify.start', `native notification failed: ${error}`),
   )
-  logger.info('TaskNotify.start', `count=${taskNames.length} first="${firstName}"`)
+  logger.info('TaskNotify.start', 'download_notification_started', {
+    count: taskNames.length,
+    first: /^(?:https?|sftp|magnet|ed2k|thunder):/i.test(firstName) ? summarizeExternalInput(firstName) : firstName,
+  })
 }

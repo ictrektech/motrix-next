@@ -11,7 +11,7 @@ import { isAudioOrVideo } from './file'
 import { parseAria2Input } from './batchHelpers'
 import type { ClipboardConfig } from '@shared/types'
 
-/** Decodes a Thunder (迅雷) protocol link to its original HTTP/FTP URL. */
+/** Decodes a Thunder protocol link to its original URL. */
 export const decodeThunderLink = (url = ''): string => {
   const trimmed = url.trim()
   if (!trimmed.toLowerCase().startsWith('thunder://')) return url
@@ -59,8 +59,8 @@ function buildAllowedTags(filter?: ClipboardConfig): string[] {
   if (filter.http) {
     tags.push('http://', 'https://')
   }
-  if (filter.ftp) {
-    tags.push('ftp://')
+  if (filter.sftp) {
+    tags.push('sftp://')
   }
   if (filter.magnet) {
     tags.push('magnet:')
@@ -100,8 +100,8 @@ function countMeaningfulInputLines(content: string): number {
  * 1. Content length ≤ 2048 characters (long payloads are not URLs).
  * 2. Split into lines; ignore empty/whitespace-only lines.
  * 3. Every remaining line must start with a recognized protocol tag
- *    (`http://`, `https://`, `ftp://`, `magnet:`, `thunder://`)
- *    OR be a bare BitTorrent v1 info hash (SHA-1 hex / Base32).
+ *    (`http://`, `https://`, `sftp://`, `magnet:`, `thunder://`)
+ *    OR be a bare BitTorrent v1 or v2 info hash.
  *
  * When a `filter` is provided, only the enabled protocol families are matched.
  * The `enable` master switch short-circuits to false when off.

@@ -386,45 +386,22 @@ fn should_silent_route_extension_input(app: &AppHandle, req: &AddRequest) -> boo
                 .get("silentAutoSubmitFromExtension")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(true);
-            let auto_select_all = p
-                .get("autoSelectAllBtFilesFromExtension")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
-            let pause_metadata = p
-                .get("pauseMetadata")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(true);
             let effective_url = req.final_url.as_deref().unwrap_or(&req.url);
-            should_silent_route_url(
-                effective_url,
-                auto_submit,
-                silent,
-                auto_select_all,
-                pause_metadata,
-            )
+            should_silent_route_url(effective_url, auto_submit, silent)
         })
         .unwrap_or(false)
 }
 
-fn should_silent_route_url(
-    raw_url: &str,
-    auto_submit: bool,
-    silent: bool,
-    auto_select_all: bool,
-    pause_metadata: bool,
-) -> bool {
+fn should_silent_route_url(raw_url: &str, auto_submit: bool, silent: bool) -> bool {
     if !(auto_submit && silent) {
         return false;
     }
     let lower = raw_url.to_ascii_lowercase();
     if lower.starts_with("magnet:") {
-        if auto_select_all {
-            return true;
-        }
-        return !pause_metadata;
+        return true;
     }
     if is_remote_torrent_url(raw_url) {
-        return auto_select_all;
+        return false;
     }
     true
 }

@@ -2,7 +2,7 @@
  * @fileoverview Tests for the useAppMessage composable.
  *
  * Key behaviors under test:
- * - All four message types (success, error, warning, info) invoke Naive UI's message API
+ * - All four message types invoke Naive UI's message API
  * - Content is truncated via ellipsis when exceeding TOAST_MAX_LENGTH
  * - Duplicate messages within the dedup window are coalesced (destroy + rescheduled)
  * - Different content strings are tracked independently
@@ -19,7 +19,8 @@ function createMessageHandle(options?: { duration?: number; onAfterLeave?: () =>
     closed = true
     options?.onAfterLeave?.()
   }
-  setTimeout(close, options?.duration ?? 0)
+  const duration = options?.duration ?? 0
+  if (duration > 0) setTimeout(close, duration)
   return {
     destroy: () => {
       destroyFn()
@@ -41,6 +42,12 @@ const mockMessageApi = {
   info: vi.fn((_content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) =>
     createMessageHandle(options),
   ),
+  loading: vi.fn((content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) => ({
+    ...createMessageHandle(options),
+    content,
+    type: 'loading',
+    closable: false,
+  })),
 }
 
 vi.mock('naive-ui', () => ({
@@ -80,6 +87,28 @@ describe('useAppMessage', () => {
 
     msg.info('note')
     expect(mockMessageApi.info).toHaveBeenCalledOnce()
+  })
+
+  it('updates and completes a tracked progress message in place', () => {
+    const msg = useAppMessage()
+    const progress = msg.progress('stopping')
+    const reactive = mockMessageApi.loading.mock.results[0].value as {
+      content: () => { children?: string }
+      type: string
+      closable: boolean
+    }
+
+    progress.update('restarting')
+    expect(reactive.content().children).toBe('restarting')
+    expect(reactive.type).toBe('loading')
+
+    progress.finish('complete', 'success')
+    expect(reactive.content().children).toBe('complete')
+    expect(reactive.type).toBe('success')
+    expect(reactive.closable).toBe(true)
+
+    vi.advanceTimersByTime(4000)
+    expect(destroyFn).toHaveBeenCalledOnce()
   })
 
   it('truncates long content to TOAST_MAX_LENGTH (128 chars)', () => {

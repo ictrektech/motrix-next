@@ -112,9 +112,11 @@ function mockSelect(query: string, params: unknown[]): unknown[] {
   }
 
   if (q.includes('COUNT(DISTINCT GID)')) {
-    const values = new Set(params.map(String))
+    const status = String(params[0])
+    const values = new Set(params.slice(1).map(String))
     const matchedGids = new Set<string>()
     for (const row of rows) {
+      if (row.status !== status) continue
       let meta: Record<string, unknown> = {}
       try {
         meta = row.meta ? (JSON.parse(row.meta) as Record<string, unknown>) : {}
@@ -134,6 +136,11 @@ function mockSelect(query: string, params: unknown[]): unknown[] {
   }
 
   if (q.includes('COUNT(*)')) {
+    if (q.includes('GROUP BY STATUS')) {
+      return ['complete', 'error']
+        .map((status) => ({ status, count: rows.filter((row) => row.status === status).length }))
+        .filter((entry) => entry.count > 0)
+    }
     if (q.includes('WHERE STATUS')) {
       const status = params[0] as string
       return [{ count: rows.filter((r) => r.status === status).length }]
@@ -336,7 +343,17 @@ describe('HistoryStore', () => {
         }),
       ]
 
-      await expect(store.countRecordsMatchingTaskIdentities(liveTasks)).resolves.toBe(3)
+      await expect(store.countRecordsMatchingTaskIdentities(liveTasks, 'complete')).resolves.toBe(3)
+    })
+  })
+
+  describe('getStatusCounts', () => {
+    it('returns separate successful and failed totals', async () => {
+      await store.addRecord(makeRecord({ gid: 'done-1', status: 'complete' }))
+      await store.addRecord(makeRecord({ gid: 'done-2', status: 'complete' }))
+      await store.addRecord(makeRecord({ gid: 'failed-1', status: 'error' }))
+
+      await expect(store.getStatusCounts()).resolves.toEqual({ completed: 2, failed: 1 })
     })
   })
 

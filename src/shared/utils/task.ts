@@ -2,6 +2,7 @@
 import { parseInt } from 'lodash-es'
 import { join } from '@tauri-apps/api/path'
 import type { Aria2Task, Aria2File } from '@shared/types'
+import type { I18nKey } from '@shared/i18nTypes'
 import { resolveTaskFilePath } from '@/composables/useArchivedPaths'
 
 /** Calculates download progress as a percentage. */
@@ -64,11 +65,18 @@ export const getTaskName = (task: Aria2Task | null, options: { defaultName?: str
   if (!task) return result
 
   const { files, bittorrent } = task
+  if (bittorrent?.info?.name) return bittorrent.info.name
+  if (bittorrent?.magnetLink) {
+    try {
+      const displayName = new URL(bittorrent.magnetLink).searchParams.get('dn')?.trim()
+      if (displayName) return displayName
+    } catch {
+      // Continue through file-based fallbacks.
+    }
+  }
   if (!files || files.length === 0) return result
 
-  if (bittorrent && bittorrent.info && bittorrent.info.name) {
-    result = bittorrent.info.name
-  } else if (files.length === 1) {
+  if (files.length === 1) {
     const name = getFileNameFromFile(files[0])
     result = name || result
   } else {
@@ -105,22 +113,54 @@ export const isMagnetTask = (task: Aria2Task): boolean => {
 export const isBtMetadataTask = (task: Aria2Task): boolean => {
   if (!task.bittorrent) return false
   if (task.bittorrent.info) return false
-  return !task.following
+  return task.bittorrent.state === 'adding' || task.bittorrent.state === 'downloadingMetadata'
 }
 
 export type TaskSharingKind = 'bt' | 'ed2k'
+export type TaskSharingPhase = 'active' | 'paused'
 
-/** Returns the protocol-specific shared-upload state, if the task is upload-only and active. */
-export const getTaskSharingKind = (task: Aria2Task): TaskSharingKind | null => {
-  if (task.status !== 'active' || task.seeder !== 'true') return null
-  if (task.bittorrent) return 'bt'
-  if (task.ed2k) return 'ed2k'
-  return null
+export interface TaskSharingState {
+  kind: TaskSharingKind
+  phase: TaskSharingPhase
 }
 
-/** Returns true if the task is in a completed shared-upload state. */
+/** Returns the protocol and phase for a live P2P sharing task. */
+export const getTaskSharingState = (task: Aria2Task): TaskSharingState | null => {
+  if (task.seeder !== 'true' || (task.status !== 'active' && task.status !== 'paused')) return null
+  const kind = task.bittorrent ? 'bt' : task.ed2k ? 'ed2k' : null
+  return kind ? { kind, phase: task.status } : null
+}
+
+export const getTaskSharingKind = (task: Aria2Task): TaskSharingKind | null => {
+  return getTaskSharingState(task)?.kind ?? null
+}
+
+export const getTaskSharingPhase = (task: Aria2Task): TaskSharingPhase | null => {
+  return getTaskSharingState(task)?.phase ?? null
+}
+
+export const getTaskSharingTime = (task: Aria2Task): number => {
+  const value = task.bittorrent?.finishedTime ?? task.ed2k?.sharingTime
+  const seconds = Number(value)
+  return Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
+}
+
+/** Returns true if the task is actively sharing completed content. */
 export const checkTaskIsSharing = (task: Aria2Task): boolean => {
-  return getTaskSharingKind(task) !== null
+  return getTaskSharingPhase(task) === 'active'
+}
+
+export const getSharingActionLabelKey = (kind: TaskSharingKind, action: 'pause' | 'resume' | 'finish'): I18nKey => {
+  return kind === 'bt' ? `task.${action}-seeding` : `task.${action}-sharing`
+}
+
+export const getSharingStatusLabelKey = (state: TaskSharingState): I18nKey => {
+  if (state.phase === 'paused') return state.kind === 'bt' ? 'task.seeding-paused' : 'task.sharing-paused'
+  return state.kind === 'bt' ? 'task.seeding' : 'task.sharing'
+}
+
+export const getSharingResultLabelKey = (kind: TaskSharingKind, result: 'success' | 'fail'): I18nKey => {
+  return kind === 'bt' ? `task.finish-seeding-${result}` : `task.finish-sharing-${result}`
 }
 
 /** Returns true if the task is a BitTorrent download (has bittorrent metadata). */
@@ -138,7 +178,7 @@ export const checkTaskIsEd2kSearch = (task: Partial<Aria2Task> = {} as Partial<A
 /**
  * Collects all download URIs from a task.
  * For BT and ED2K tasks, returns the engine-serialized canonical link.
- * For HTTP/FTP tasks, iterates all files and extracts their URIs.
+ * For stream tasks, iterates all files and extracts their URIs.
  */
 export const getTaskUris = (task: Aria2Task, _withTracker = false): string[] => {
   const magnet = task.bittorrent?.magnetLink?.trim()
@@ -169,7 +209,7 @@ export const getTaskUris = (task: Aria2Task, _withTracker = false): string[] => 
  *
  * - BT: single group containing the magnet link
  * - ED2K: single group containing the file link
- * - HTTP/FTP: one group per file, each containing ALL mirror URIs
+ * - Streams: one group per file, each containing all mirror URIs
  *
  * Each group maps to one addUriAtomic({ uris: [...mirrors] }) call.
  */
@@ -183,7 +223,8 @@ export const getRestartDescriptors = (task: Aria2Task, _withTracker = false): st
   const descriptors: string[][] = []
   for (const file of files) {
     if (file.uris && file.uris.length > 0) {
-      descriptors.push(file.uris.map((u) => u.uri))
+      const uniqueUris = [...new Set(file.uris.map((entry) => entry.uri.trim()).filter(Boolean))]
+      if (uniqueUris.length > 0) descriptors.push(uniqueUris)
     }
   }
   return descriptors

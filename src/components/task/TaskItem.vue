@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview Individual task row in the task list with progress and controls. */
-import { computed, ref, watch, onBeforeUnmount } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TASK_STATUS } from '@shared/constants'
 import { NProgress, NIcon } from 'naive-ui'
@@ -23,17 +23,20 @@ import TaskDragHandle from './TaskDragHandle.vue'
 import TaskItemActions from './TaskItemActions.vue'
 import type { Aria2Task } from '@shared/types'
 
-const props = defineProps<{ task: Aria2Task }>()
+const props = withDefaults(defineProps<{ task: Aria2Task; actionPending?: boolean }>(), { actionPending: false })
 const emit = defineEmits<{
   pause: [task: Aria2Task]
   resume: [task: Aria2Task]
+  retry: [task: Aria2Task]
+  redownload: [task: Aria2Task]
+  'finish-sharing': [task: Aria2Task]
   delete: [task: Aria2Task]
   'delete-record': [task: Aria2Task]
   'copy-link': [task: Aria2Task]
   'show-info': [task: Aria2Task]
   folder: [task: Aria2Task]
   'open-file': [task: Aria2Task]
-  'stop-sharing': [task: Aria2Task]
+  'select-files': [task: Aria2Task]
 }>()
 
 const { t } = useI18n()
@@ -68,6 +71,7 @@ const statusColorMap: Record<string, string> = {
 
 const progressColor = computed(() => statusColorMap[taskStatus.value] || 'var(--m3-status-active)')
 const hasStatusLine = computed(() => Boolean(statusBadge.value || fileMissing.value))
+const displayErrorMessage = computed(() => props.task.errorMessage || props.task.bittorrent?.error?.message || '')
 
 const statusBadgeStyle = computed(() => {
   switch (statusBadge.value?.tone) {
@@ -89,6 +93,7 @@ const statusBadgeIcon = computed(() => {
     case TASK_STATUS.COMPLETE:
       return CheckmarkCircleOutline
     case TASK_STATUS.ERROR:
+    case 'bt-error':
       return AlertCircleOutline
     case TASK_STATUS.REMOVED:
       return TrashOutline
@@ -100,17 +105,6 @@ const statusBadgeIcon = computed(() => {
       return CloudUploadOutline
   }
 })
-
-function onDblClick() {
-  if (isSharing.value) return
-  const s = props.task.status
-  if (s === TASK_STATUS.COMPLETE) {
-    emit('open-file', props.task)
-    return
-  }
-  if (s === TASK_STATUS.ACTIVE || s === TASK_STATUS.WAITING) emit('pause', props.task)
-  else if (s === TASK_STATUS.PAUSED) emit('resume', props.task)
-}
 
 const { fileMissing } = useTaskFileMissing(taskRef)
 
@@ -127,52 +121,15 @@ watch(isSharing, (now, was) => {
     sharingEnter.value = true
   }
 })
-
-// ── Card press-hold interaction ─────────────────────────────────────
-// Mirrors the pointerdown/pointerup pattern from TaskItemActions.
-// Card stays pressed (scale down) while pointer is held, then springs
-// back on release with a minimum visual duration for quick clicks.
-const CARD_PRESS_MS = 180
-let cardPressStart = 0
-let cardPressTimer: ReturnType<typeof setTimeout> | null = null
-const cardRef = ref<HTMLElement | null>(null)
-
-function onCardPress() {
-  if (cardPressTimer) clearTimeout(cardPressTimer)
-  cardPressStart = Date.now()
-  cardRef.value?.classList.add('pressed')
-}
-
-function onCardRelease() {
-  const elapsed = Date.now() - cardPressStart
-  const remaining = Math.max(0, CARD_PRESS_MS - elapsed)
-  cardPressTimer = setTimeout(() => {
-    cardRef.value?.classList.remove('pressed')
-    cardPressTimer = null
-  }, remaining)
-}
-
-onBeforeUnmount(() => {
-  if (cardPressTimer) {
-    clearTimeout(cardPressTimer)
-    cardPressTimer = null
-  }
-})
 </script>
 
 <template>
   <div
-    ref="cardRef"
     class="task-item"
     :class="{
-      'file-missing': fileMissing,
       'is-sharing': isSharing,
       'sharing-enter': sharingEnter,
     }"
-    @dblclick="onDblClick"
-    @pointerdown="onCardPress"
-    @pointerup="onCardRelease"
-    @pointerleave="onCardRelease"
     @animationend="sharingEnter = false"
   >
     <TaskDragHandle class="task-drag-rail" />
@@ -193,17 +150,20 @@ onBeforeUnmount(() => {
         </MTooltip>
         <TaskItemActions
           :task="task"
-          :status="taskStatus"
           :file-missing="fileMissing"
+          :pending="actionPending"
           @pause="emit('pause', task)"
           @resume="emit('resume', task)"
+          @retry="emit('retry', task)"
+          @redownload="emit('redownload', task)"
+          @finish-sharing="emit('finish-sharing', task)"
           @delete="emit('delete', task)"
           @delete-record="emit('delete-record', task)"
           @copy-link="emit('copy-link', task)"
           @show-info="emit('show-info', task)"
           @folder="emit('folder', task)"
           @open-file="emit('open-file', task)"
-          @stop-sharing="emit('stop-sharing', task)"
+          @select-files="emit('select-files', task)"
         />
       </div>
       <div class="task-status-slot" :class="{ 'task-status-slot--visible': hasStatusLine }">
@@ -233,10 +193,7 @@ onBeforeUnmount(() => {
         />
         <div class="task-progress-info">
           <div class="progress-left" :class="{ 'info-hidden': !hasSizeInfo }">
-            <span>
-              {{ completedSize }}
-              <span v-if="Number(task.totalLength) > 0"> / {{ totalSize }}</span>
-            </span>
+            <span>{{ percent }}% · {{ completedSize }} / {{ totalSize }}</span>
           </div>
           <div class="progress-right" :class="{ 'info-hidden': !isActive }">
             <span class="speed-text" :class="{ 'info-hidden': remaining <= 0 }">
@@ -259,8 +216,8 @@ onBeforeUnmount(() => {
               <span>{{ task.connections }}</span>
             </span>
           </div>
-          <div class="error-message technical-text-wrap" :class="{ 'info-hidden': !task.errorMessage }">
-            {{ task.errorMessage }}
+          <div class="error-message technical-text-wrap" :class="{ 'info-hidden': !displayErrorMessage }">
+            {{ displayErrorMessage }}
           </div>
         </div>
       </div>
@@ -324,9 +281,6 @@ onBeforeUnmount(() => {
 .task-item.sharing-enter::before {
   animation: sharing-overlay-enter 1.2s cubic-bezier(0.05, 0.7, 0.1, 1) forwards;
 }
-.task-item:hover {
-  border-color: var(--task-item-hover-border);
-}
 .task-item:hover .task-drag-rail {
   opacity: 0.64;
 }
@@ -340,22 +294,6 @@ onBeforeUnmount(() => {
   grid-template-rows: auto auto auto;
   min-width: 0;
   padding: 16px 12px;
-}
-/* ── Card press-hold state ──────────────────────────────────────────── */
-/* Asymmetric timing: fast press-in (0.15s), springy release (0.35s).   */
-/* The release uses M3 emphasized-decelerate for organic overshoot.     */
-.task-item.pressed {
-  transform: scale(0.98);
-  border-color: var(--m3-primary);
-  transition:
-    transform 0.15s cubic-bezier(0.2, 0, 0, 1),
-    border-color 0.15s;
-}
-/* Spring-back on release — overshoots slightly via emphasized easing */
-.task-item:not(.pressed) {
-  transition:
-    transform 0.35s cubic-bezier(0.05, 0.7, 0.1, 1),
-    border-color 0.3s;
 }
 .task-header {
   display: grid;
@@ -422,9 +360,6 @@ onBeforeUnmount(() => {
     opacity: 0.9;
     transform: translateY(0);
   }
-}
-.task-item.file-missing {
-  border-color: var(--m3-error);
 }
 /* M3 progress-bar transition between semantic status colors. */
 .task-progress :deep(.n-progress-graph-line-fill) {

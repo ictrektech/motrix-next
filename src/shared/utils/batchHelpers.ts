@@ -38,9 +38,7 @@ export function detectKind(source: string): BatchItemKind {
   }
 
   // ── 2. Remote URLs are ordinary downloads ────────────────────────
-  if (/^https?:\/\//i.test(lower)) return 'uri'
-
-  if (/^ftp:\/\//i.test(lower)) return 'uri'
+  if (/^(?:https?|sftp):\/\//i.test(lower)) return 'uri'
 
   // ── 3. Local file paths: extension suffix match ───────────────────
   if (lower.endsWith('.torrent')) return 'torrent'
@@ -114,6 +112,7 @@ export function createBatchItem(kind: BatchItemKind, source: string, payload = '
     displayName: toDisplayName(source, kind),
     payload: payload || source, // URI items use source as payload
     status: 'pending',
+    inspectionState: kind === 'torrent' ? 'reading' : undefined,
   }
 }
 
@@ -124,9 +123,10 @@ export function resetBatchIdCounter(): void {
 
 // ── URI normalization ───────────────────────────────────────────────
 
-/** If the line is a bare BitTorrent v1 info hash, wrap it as a magnet URI. */
+/** If the line is a bare BitTorrent info hash, wrap it as a magnet URI. */
 function normalizeInfoHash(line: string): string {
-  return BARE_INFO_HASH_RE.test(line) ? `magnet:?xt=urn:btih:${line}` : line
+  if (!BARE_INFO_HASH_RE.test(line)) return line
+  return line.length === 64 ? `magnet:?xt=urn:btmh:1220${line.toLowerCase()}` : `magnet:?xt=urn:btih:${line}`
 }
 
 function normalizeUriLine(line: string): string {
@@ -468,7 +468,7 @@ function isWeakExternalFilenameHint(url: string, filename: string): boolean {
   const stem = filenameStem(filename).toLowerCase()
   if (GENERIC_EXTERNAL_FILENAME_HINTS.has(lower)) return true
 
-  const isRemoteDownloadUrl = /^(?:https?|ftp):\/\//i.test(url)
+  const isRemoteDownloadUrl = /^(?:https?|sftp):\/\//i.test(url)
   if (!isRemoteDownloadUrl) return false
   if (GENERIC_EXTERNAL_FILENAME_HINTS.has(stem)) return true
 

@@ -10,7 +10,7 @@
  *
  * Key behaviors under test:
  *   1. onComplete handler always sends in-app toast; Rust sends native OS notification.
- *   2. onSharingComplete handler always sends in-app toast; Rust sends native OS notification.
+ *   2. P2P completion handler always sends in-app toast; Rust sends native OS notification.
  *   3. onError handler logs the frontend toast path; Rust sends native OS notification.
  *   4. Metadata tasks are excluded from completion notifications.
  *   5. When action callbacks are provided, toast contains a render function.
@@ -38,7 +38,12 @@ vi.mock('../useNotificationToast', () => ({
   },
 }))
 
-import { handleTaskComplete, handleSharingComplete, handleTaskError, handleTaskStart } from '../useTaskNotifyHandlers'
+import {
+  handleTaskComplete,
+  handleP2pDownloadComplete,
+  handleTaskError,
+  handleTaskStart,
+} from '../useTaskNotifyHandlers'
 
 // ── Test data factory ────────────────────────────────────────────────
 
@@ -124,7 +129,7 @@ describe('handleTaskComplete', () => {
   it('skips native aria2 metadata-only tasks', () => {
     const deps = makeDeps()
     const task = makeTask({
-      bittorrent: {},
+      bittorrent: { state: 'downloadingMetadata' },
     })
 
     handleTaskComplete(task, deps)
@@ -179,9 +184,9 @@ describe('handleTaskComplete', () => {
   })
 })
 
-// ── handleSharingComplete ─────────────────────────────────────────────
+// ── handleP2pDownloadComplete ─────────────────────────────────────────
 
-describe('handleSharingComplete', () => {
+describe('handleP2pDownloadComplete', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -190,7 +195,7 @@ describe('handleSharingComplete', () => {
     const deps = makeDeps()
     const task = makeTask({ bittorrent: { info: { name: 'Big Archive' } } })
 
-    handleSharingComplete(task, 'bt', deps)
+    handleP2pDownloadComplete(task, 'bt', deps)
 
     expect(deps.messageSuccess).toHaveBeenCalledOnce()
     expect(deps.messageSuccess).toHaveBeenCalledWith('Seeding: Big Archive')
@@ -200,7 +205,7 @@ describe('handleSharingComplete', () => {
     const deps = makeDeps()
     const task = makeTask({ ed2k: { name: 'Big Archive', hash: 'ed2khash' } })
 
-    handleSharingComplete(task, 'ed2k', deps)
+    handleP2pDownloadComplete(task, 'ed2k', deps)
 
     expect(deps.messageSuccess).toHaveBeenCalledOnce()
     expect(deps.messageSuccess).toHaveBeenCalledWith('Sharing: test-file.zip')
@@ -212,7 +217,7 @@ describe('handleSharingComplete', () => {
     const deps = makeDeps({ onOpenFile, onShowInFolder })
     const task = makeTask({ bittorrent: { info: { name: 'Big Archive' } } })
 
-    handleSharingComplete(task, 'bt', deps)
+    handleP2pDownloadComplete(task, 'bt', deps)
 
     expect(deps.messageSuccess).toHaveBeenCalledOnce()
     const arg = (deps.messageSuccess as ReturnType<typeof vi.fn>).mock.calls[0][0]

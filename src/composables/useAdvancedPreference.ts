@@ -36,12 +36,9 @@ export interface AdvancedForm {
   extensionApiSecret: string
   allowRemoteAccess: boolean
   autoSubmitFromExtension: boolean
-  autoSelectAllBtFilesFromExtension: boolean
   silentAutoSubmitFromExtension: boolean
   autoChangeConflictingPorts: boolean
   enableUpnp: boolean
-  listenPort: number
-  dhtListenPort: number
   userAgent: string
   logLevel: AppLogLevel
   aria2LogLevel: Aria2LogLevel
@@ -50,7 +47,7 @@ export interface AdvancedForm {
   // Clipboard detection (migrated from legacy Basic tab)
   clipboardEnable: boolean
   clipboardHttp: boolean
-  clipboardFtp: boolean
+  clipboardSftp: boolean
   clipboardMagnet: boolean
   clipboardEd2k: boolean
   clipboardThunder: boolean
@@ -95,13 +92,9 @@ export function buildAdvancedForm(config: AppConfig): {
       extensionApiSecret: config.extensionApiSecret,
       allowRemoteAccess: config.allowRemoteAccess ?? D.allowRemoteAccess,
       autoSubmitFromExtension: config.autoSubmitFromExtension ?? D.autoSubmitFromExtension,
-      autoSelectAllBtFilesFromExtension:
-        config.autoSelectAllBtFilesFromExtension ?? D.autoSelectAllBtFilesFromExtension,
       silentAutoSubmitFromExtension: config.silentAutoSubmitFromExtension ?? D.silentAutoSubmitFromExtension,
       autoChangeConflictingPorts: config.autoChangeConflictingPorts ?? D.autoChangeConflictingPorts,
       enableUpnp: config.enableUpnp ?? D.enableUpnp,
-      listenPort: Number(config.listenPort ?? D.listenPort),
-      dhtListenPort: Number(config.dhtListenPort ?? D.dhtListenPort),
       userAgent: config.userAgent ?? D.userAgent,
       logLevel: config.logLevel ?? D.logLevel,
       aria2LogLevel: config.aria2LogLevel ?? D.aria2LogLevel,
@@ -110,7 +103,7 @@ export function buildAdvancedForm(config: AppConfig): {
       // Clipboard detection
       clipboardEnable: config.clipboard?.enable ?? D.clipboard.enable,
       clipboardHttp: config.clipboard?.http ?? D.clipboard.http,
-      clipboardFtp: config.clipboard?.ftp ?? D.clipboard.ftp,
+      clipboardSftp: config.clipboard?.sftp ?? D.clipboard.sftp,
       clipboardMagnet: config.clipboard?.magnet ?? D.clipboard.magnet,
       clipboardEd2k: config.clipboard?.ed2k ?? D.clipboard.ed2k,
       clipboardThunder: config.clipboard?.thunder ?? D.clipboard.thunder,
@@ -132,8 +125,6 @@ export function buildAdvancedSystemConfig(f: AdvancedForm): Record<string, strin
     'rpc-listen-port': String(f.rpcListenPort),
     'allow-remote-access': String(!!f.allowRemoteAccess),
     'rpc-secret': f.rpcSecret,
-    'listen-port': String(f.listenPort),
-    'dht-listen-port': String(f.dhtListenPort),
     'user-agent': f.userAgent || '',
     ...buildDownloadProxyOptions(f.proxy),
   }
@@ -148,7 +139,7 @@ export function transformAdvancedForStore(f: AdvancedForm): Record<string, unkno
   const {
     clipboardEnable,
     clipboardHttp,
-    clipboardFtp,
+    clipboardSftp,
     clipboardMagnet,
     clipboardEd2k,
     clipboardThunder,
@@ -160,7 +151,7 @@ export function transformAdvancedForStore(f: AdvancedForm): Record<string, unkno
     clipboard: {
       enable: clipboardEnable,
       http: clipboardHttp,
-      ftp: clipboardFtp,
+      sftp: clipboardSftp,
       magnet: clipboardMagnet,
       ed2k: clipboardEd2k,
       thunder: clipboardThunder,
@@ -189,13 +180,5 @@ export function validateAdvancedForm(f: AdvancedForm): string | null {
 // ── Port Randomization ──────────────────────────────────────────────
 
 export function randomRpcPort(): number {
-  return generateRandomInt(PORT_RECOVERY_RANGE_START, PORT_RECOVERY_RANGE_END + 1)
-}
-
-export function randomBtPort(): number {
-  return generateRandomInt(PORT_RECOVERY_RANGE_START, PORT_RECOVERY_RANGE_END + 1)
-}
-
-export function randomDhtPort(): number {
   return generateRandomInt(PORT_RECOVERY_RANGE_START, PORT_RECOVERY_RANGE_END + 1)
 }

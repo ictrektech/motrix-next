@@ -3,9 +3,9 @@
 import { ref, computed, watch, onMounted, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePreferenceStore } from '@/stores/preference'
+import { useAppStore } from '@/stores/app'
 import { usePreferenceForm } from '@/composables/usePreferenceForm'
-import { invoke } from '@tauri-apps/api/core'
-import { useEngineRestart } from '@/composables/useEngineRestart'
+import { useEngineStore } from '@/stores/engine'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { arch as osArch, version as osVersion } from '@tauri-apps/plugin-os'
 import { usePlatform } from '@/composables/usePlatform'
@@ -13,7 +13,8 @@ import { getVersion as getAppVersion } from '@tauri-apps/api/app'
 import { getVersion as getAria2Version } from '@/api/aria2'
 import { getLocale } from 'tauri-plugin-locale-api'
 import { resolveSystemLocale } from '@shared/utils/locale'
-import { SUPPORTED_LOCALES, loadLocale } from '@/composables/useLocale'
+import { loadLocale } from '@/composables/useLocale'
+import { isSupportedLocale, LOCALE_CATALOG, SUPPORTED_LOCALES } from '@shared/localeCatalog'
 import { logger } from '@shared/logger'
 import { writeAppClipboardText } from '@shared/utils'
 import { isWebApp } from '@/web/runtime'
@@ -22,7 +23,7 @@ import {
   buildGeneralSystemConfig,
   transformGeneralForStore,
 } from '@/composables/useGeneralPreference'
-import { COLOR_SCHEMES, CUSTOM_COLOR_SCHEME_ID, ENGINE_RPC_PORT } from '@shared/constants'
+import { COLOR_SCHEMES, CUSTOM_COLOR_SCHEME_ID } from '@shared/constants'
 import { normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
@@ -45,12 +46,12 @@ import {
 import PreferenceActionBar from './PreferenceActionBar.vue'
 import MTooltip from '@/components/common/MTooltip.vue'
 import { CloudDownloadOutline } from '@vicons/ionicons5'
-import UpdateDialog from '@/components/preference/UpdateDialog.vue'
 import type { UpdateChannel } from '@shared/types'
 import PreferenceHintLabel from './PreferenceHintLabel.vue'
 
 const { t, locale } = useI18n()
 const preferenceStore = usePreferenceStore()
+const appStore = useAppStore()
 const dialog = useDialog()
 const message = useAppMessage()
 const { isMac, isLinux, platformLabel, archLabel: getArchLabel } = usePlatform()
@@ -79,7 +80,6 @@ async function copyVersionToClipboard(text: string, label: string) {
     logger.debug('General.clipboard', `writeText failed: ${e}`)
   }
 }
-const updateDialogRef = ref<InstanceType<typeof UpdateDialog> | null>(null)
 
 async function fetchVosRuntimeInfo(): Promise<void> {
   if (!isWebApp) return
@@ -125,7 +125,9 @@ const { form, isDirty, handleSave, handleReset, patchSnapshot, resetSnapshot } =
     const prevLocale = prevConfig.locale || 'auto'
     if (f.locale !== prevLocale) {
       // Determine the actual target locale for bilingual dialog rendering.
-      const targetLocale = f.locale === 'auto' ? detectedLocaleCode.value || 'en-US' : f.locale
+      const targetLocale = isSupportedLocale(f.locale)
+        ? f.locale
+        : resolveSystemLocale(detectedLocaleCode.value, SUPPORTED_LOCALES)
       const isEn = targetLocale === 'en-US'
       // Locale messages are lazy-loaded — pull in the target locale so the
       // dialog can render in it (falls back to English if loading fails).
@@ -154,7 +156,7 @@ const { form, isDirty, handleSave, handleReset, patchSnapshot, resetSnapshot } =
           ? tt('preferences.language-changed-later')
           : `${tt('preferences.language-changed-later')} · Later`,
         onPositiveClick: async () => {
-          await invoke('stop_engine_command')
+          await engineStore.stop('appRelaunch')
           relaunch()
         },
       })
@@ -231,35 +233,7 @@ watch(
   },
 )
 
-const localeOptions = [
-  { label: 'English', value: 'en-US' },
-  { label: '简体中文 · Chinese Simplified', value: 'zh-CN' },
-  { label: '繁體中文 · Chinese Traditional', value: 'zh-TW' },
-  { label: '日本語 · Japanese', value: 'ja' },
-  { label: '한국어 · Korean', value: 'ko' },
-  { label: 'Français · French', value: 'fr' },
-  { label: 'Deutsch · German', value: 'de' },
-  { label: 'Español · Spanish', value: 'es' },
-  { label: 'Português · Portuguese (Brazil)', value: 'pt-BR' },
-  { label: 'Русский · Russian', value: 'ru' },
-  { label: 'Türkçe · Turkish', value: 'tr' },
-  { label: 'العربية · Arabic', value: 'ar' },
-  { label: 'Български · Bulgarian', value: 'bg' },
-  { label: 'Català · Catalan', value: 'ca' },
-  { label: 'Ελληνικά · Greek', value: 'el' },
-  { label: 'فارسی · Persian', value: 'fa' },
-  { label: 'Magyar · Hungarian', value: 'hu' },
-  { label: 'हिन्दी · Hindi', value: 'hi' },
-  { label: 'Bahasa Indonesia · Indonesian', value: 'id' },
-  { label: 'Italiano · Italian', value: 'it' },
-  { label: 'Norsk Bokmål · Norwegian', value: 'nb' },
-  { label: 'Nederlands · Dutch', value: 'nl' },
-  { label: 'Polski · Polish', value: 'pl' },
-  { label: 'Română · Romanian', value: 'ro' },
-  { label: 'ไทย · Thai', value: 'th' },
-  { label: 'Українська · Ukrainian', value: 'uk' },
-  { label: 'Tiếng Việt · Vietnamese', value: 'vi' },
-]
+const localeOptions = LOCALE_CATALOG.map(({ code, label }) => ({ label, value: code }))
 
 /** Dynamic label for the 'auto' option. */
 const autoLocaleLabel = computed(() => {
@@ -281,30 +255,10 @@ const taskCardModeOptions = computed(() => [
 ])
 
 function handleCheckUpdate() {
-  updateDialogRef.value?.open()
+  appStore.requestUpdateCheck()
 }
 
-const { restartEngine } = useEngineRestart()
-
-function handleManualRestart() {
-  const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
-  const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.info({
-    title: t('preferences.engine-restart-title'),
-    content: t('preferences.engine-restart-manual-confirm'),
-    positiveText: t('preferences.engine-restart-now'),
-    negativeText: t('preferences.engine-restart-later'),
-    maskClosable: false,
-    onPositiveClick: async () => {
-      d.loading = true
-      d.negativeText = ''
-      d.closable = false
-      message.info(t('preferences.engine-restarting'))
-      await new Promise((r) => requestAnimationFrame(r))
-      await restartEngine({ port, secret })
-    },
-  })
-}
+const engineStore = useEngineStore()
 
 onMounted(async () => {
   sysArch.value = await readOsValue(osArch, 'General.arch')
@@ -385,7 +339,7 @@ onMounted(async () => {
             <template #trigger>
               <button
                 class="sysinfo-ver-badge"
-                @click="copyVersionToClipboard(`VOS App v${vosRuntimeInfo?.vosAppVersion || ''}`, 'VOS App')"
+                @click="copyVersionToClipboard(`VOS App v${vosRuntimeInfo?.vosAppVersion}`, 'VOS App')"
               >
                 <span class="sysinfo-ver-value">v{{ vosRuntimeInfo.vosAppVersion }}</span>
                 <svg class="sysinfo-ver-copy" width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -411,7 +365,7 @@ onMounted(async () => {
                 </svg>
               </button>
             </template>
-            {{ vosRuntimeInfo.image }}
+            {{ vosRuntimeInfo.image || t('about.click-to-copy') }}
           </MTooltip>
         </NFormItem>
 
@@ -479,8 +433,6 @@ onMounted(async () => {
             <NText v-else depth="3" class="pref-inline-row__meta">—</NText>
           </div>
         </NFormItem>
-        <UpdateDialog ref="updateDialogRef" />
-
         <!-- ④ Appearance -->
         <NDivider title-placement="left">{{ t('preferences.appearance-section') }}</NDivider>
         <NFormItem :label="t('preferences.appearance')">
@@ -532,6 +484,9 @@ onMounted(async () => {
             </NRadioButton>
           </NRadioGroup>
         </NFormItem>
+        <NFormItem :label="t('preferences.reduce-motion')">
+          <NSwitch v-model:value="form.reduceMotion" />
+        </NFormItem>
         <NFormItem :label="t('preferences.sidebar-task-counts')">
           <NSwitch v-model:value="form.sidebarTaskCounts" />
         </NFormItem>
@@ -582,7 +537,7 @@ onMounted(async () => {
         </NFormItem>
       </NForm>
     </div>
-    <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />
+    <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" />
   </div>
 </template>
 
@@ -621,14 +576,6 @@ onMounted(async () => {
   color: var(--m3-on-surface);
   letter-spacing: 0.3px;
 }
-.sysinfo-ver-badge--wide {
-  max-width: min(520px, 100%);
-}
-.sysinfo-ver-badge--wide .sysinfo-ver-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .sysinfo-ver-copy {
   opacity: 0.35;
   margin-left: auto;
@@ -638,6 +585,14 @@ onMounted(async () => {
 }
 .sysinfo-ver-badge--muted {
   cursor: default;
+}
+.sysinfo-ver-badge--wide {
+  max-width: min(520px, 100%);
+}
+.sysinfo-ver-badge--wide .sysinfo-ver-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sysinfo-ver-badge--muted:hover {
   border-color: var(--m3-outline-variant);

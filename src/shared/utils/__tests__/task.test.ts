@@ -11,6 +11,8 @@ import {
   checkTaskIsEd2kSearch,
   checkTaskIsSharing,
   getTaskSharingKind,
+  getTaskSharingState,
+  getTaskSharingTime,
   getFileNameFromFile,
   getTaskDisplayName,
   getTaskUri,
@@ -143,6 +145,22 @@ describe('getTaskName', () => {
       bittorrent: { info: { name: 'My Torrent' } },
     })
     expect(getTaskName(task)).toBe('My Torrent')
+  })
+
+  it('returns BT info name before file metadata is populated', () => {
+    const task = createMockTask({
+      files: [],
+      bittorrent: { info: { name: 'My Torrent' } },
+    })
+    expect(getTaskName(task)).toBe('My Torrent')
+  })
+
+  it('uses the magnet display name while torrent metadata is pending', () => {
+    const task = createMockTask({
+      files: [],
+      bittorrent: { magnetLink: 'magnet:?xt=urn:btih:abc&dn=Ubuntu%20ISO' },
+    })
+    expect(getTaskName(task)).toBe('Ubuntu ISO')
   })
 
   it('returns filename for single-file HTTP task', () => {
@@ -354,17 +372,16 @@ describe('isMagnetTask', () => {
 describe('isBtMetadataTask', () => {
   it('returns true for native aria2 metadata task without torrent info', () => {
     const task = createMockTask({
-      bittorrent: {},
+      bittorrent: { state: 'downloadingMetadata' },
       files: [],
     })
 
     expect(isBtMetadataTask(task)).toBe(true)
   })
 
-  it('returns false for native aria2 content task with following parent', () => {
+  it('returns false for native aria2 task awaiting file selection', () => {
     const task = createMockTask({
-      bittorrent: {},
-      following: 'metadata-gid',
+      bittorrent: { info: { name: 'Archive' }, state: 'paused', fileSelectionState: 'awaiting' },
     })
 
     expect(isBtMetadataTask(task)).toBe(false)
@@ -450,13 +467,20 @@ describe('task sharing state', () => {
     expect(getTaskSharingKind(task)).toBeNull()
   })
 
-  it('returns false when seeder is true but task is paused', () => {
+  it('preserves the protocol and paused sharing phase', () => {
     const task = createMockTask({
       status: 'paused',
       bittorrent: { info: { name: 'test' } },
       seeder: 'true',
     })
-    expect(getTaskSharingKind(task)).toBeNull()
+    expect(getTaskSharingKind(task)).toBe('bt')
+    expect(getTaskSharingState(task)).toEqual({ kind: 'bt', phase: 'paused' })
+    expect(checkTaskIsSharing(task)).toBe(false)
+  })
+
+  it('reads native sharing time from both P2P protocols', () => {
+    expect(getTaskSharingTime(createMockTask({ bittorrent: { finishedTime: '42' } }))).toBe(42)
+    expect(getTaskSharingTime(createMockTask({ ed2k: { sharingTime: '84' } }))).toBe(84)
   })
 })
 

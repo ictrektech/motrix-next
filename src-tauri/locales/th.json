@@ -1,0 +1,19 @@
+{
+  "_version": 1,
+  "database-conflict.body": "ฐานข้อมูลประวัติการดาวน์โหลดถูกสร้างโดย Motrix Next เวอร์ชันใหม่กว่า และไม่สามารถใช้งานร่วมกับเวอร์ชันนี้ได้\n\nหากต้องการดำเนินการต่อ จะต้องรีเซ็ตประวัติการดาวน์โหลด\nไฟล์ที่ดาวน์โหลดแล้วจะไม่ได้รับผลกระทบ",
+  "database-conflict.cancel": "ออก",
+  "database-conflict.confirm": "รีเซ็ตและเริ่มต้น",
+  "database-conflict.title": "ฐานข้อมูลเวอร์ชันขัดแย้ง",
+  "notification.bt-complete-body": "กำลังแชร์: %{task_name}",
+  "notification.bt-complete-title": "ดาวน์โหลด BT เสร็จสิ้น",
+  "notification.download-batch-start-body": "กำลังดาวน์โหลด: %{task_name} และอีก %{count} งาน",
+  "notification.download-complete-body": "บันทึกแล้ว: %{task_name}",
+  "notification.download-complete-title": "ดาวน์โหลดเสร็จสิ้น",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "ดาวน์โหลดไม่สำเร็จ",
+  "notification.download-start-body": "กำลังดาวน์โหลด: %{task_name}",
+  "notification.download-start-title": "เริ่มดาวน์โหลดแล้ว",
+  "notification.ed2k-complete-body": "กำลังแชร์: %{task_name}",
+  "notification.ed2k-complete-title": "ดาวน์โหลด ED2K เสร็จสิ้น",
+  "notification.error-unknown": "Unknown error"
+}

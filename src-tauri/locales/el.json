@@ -1,0 +1,19 @@
+{
+  "_version": 1,
+  "database-conflict.body": "Η βάση δεδομένων ιστορικού λήψεων δημιουργήθηκε από μια νεότερη έκδοση του Motrix Next και δεν είναι συμβατή με αυτήν την έκδοση.\n\nΓια να συνεχίσετε, το ιστορικό λήψεων πρέπει να επαναφερθεί.\nΤα αρχεία που έχετε κατεβάσει ΔΕΝ θα επηρεαστούν.",
+  "database-conflict.cancel": "Έξοδος",
+  "database-conflict.confirm": "Επαναφορά και εκκίνηση",
+  "database-conflict.title": "Σύγκρουση έκδοσης βάσης δεδομένων",
+  "notification.bt-complete-body": "Διαμοίραση: %{task_name}",
+  "notification.bt-complete-title": "Η BT λήψη ολοκληρώθηκε",
+  "notification.download-batch-start-body": "Γίνεται λήψη: %{task_name} και %{count} ακόμα εργασίες",
+  "notification.download-complete-body": "Αποθηκεύτηκε: %{task_name}",
+  "notification.download-complete-title": "Η λήψη ολοκληρώθηκε",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Η λήψη απέτυχε",
+  "notification.download-start-body": "Γίνεται λήψη: %{task_name}",
+  "notification.download-start-title": "Η λήψη ξεκίνησε",
+  "notification.ed2k-complete-body": "Κοινή χρήση: %{task_name}",
+  "notification.ed2k-complete-title": "Η ED2K λήψη ολοκληρώθηκε",
+  "notification.error-unknown": "Unknown error"
+}

@@ -1,0 +1,19 @@
+{
+  "_version": 1,
+  "database-conflict.body": "Baza de date a istoricului descărcărilor a fost creată de o versiune mai nouă a Motrix Next și este incompatibilă cu această versiune.\n\nPentru a continua, istoricul descărcărilor trebuie resetat.\nFișierele descărcate NU vor fi afectate.",
+  "database-conflict.cancel": "Ieșire",
+  "database-conflict.confirm": "Resetare și pornire",
+  "database-conflict.title": "Conflict de versiune a bazei de date",
+  "notification.bt-complete-body": "Se distribuie: %{task_name}",
+  "notification.bt-complete-title": "Descărcare BT finalizată",
+  "notification.download-batch-start-body": "Se descarcă: %{task_name} și alte %{count} sarcini",
+  "notification.download-complete-body": "Salvat: %{task_name}",
+  "notification.download-complete-title": "Descărcare finalizată",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Descărcarea a eșuat",
+  "notification.download-start-body": "Se descarcă: %{task_name}",
+  "notification.download-start-title": "Descărcare începută",
+  "notification.ed2k-complete-body": "Se distribuie: %{task_name}",
+  "notification.ed2k-complete-title": "Descărcare ED2K finalizată",
+  "notification.error-unknown": "Unknown error"
+}

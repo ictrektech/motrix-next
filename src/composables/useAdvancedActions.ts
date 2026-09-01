@@ -4,7 +4,7 @@
  * Extracted from Advanced.vue to reduce component script size.
  * Contains dialog-heavy operations: session reset, restore defaults,
  * factory reset, DB integrity check, DB browse, DB reset, export logs,
- * and manual engine restart.
+ * and diagnostics utilities.
  */
 import { ref, h, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
@@ -19,10 +19,10 @@ import { calcColumnWidth } from '@shared/utils/calcColumnWidth'
 import { resolveUserVisibleDownloadDir } from '@shared/utils/userVisibleDirectory'
 import { buildSettingsBackup, parseSettingsBackup } from '@shared/utils/settingsBackup'
 import { buildSystemConfigFromAppConfig } from '@shared/utils/systemConfig'
-import { useEngineRestart } from '@/composables/useEngineRestart'
-import { ENGINE_RPC_PORT } from '@shared/constants'
+import { useEngineStore } from '@/stores/engine'
 import type { AppConfig, HistoryRecord } from '@shared/types'
 import type { DataTableSortState, PaginationProps } from 'naive-ui'
+import type { I18nKey } from '@shared/i18nTypes'
 
 interface AdvancedActionsDeps {
   t: (key: string, params?: Record<string, unknown>) => string
@@ -31,10 +31,6 @@ interface AdvancedActionsDeps {
     error: (msg: string) => void
     warning: (msg: string) => void
     info: (msg: string, opts?: Record<string, unknown>) => void
-  }
-  taskStore: {
-    batchRemoveTask: (gids: string[]) => Promise<unknown>
-    purgeTaskRecord: () => Promise<unknown>
   }
   historyStore: {
     checkIntegrity: () => Promise<string>
@@ -56,17 +52,17 @@ interface AdvancedActionsDeps {
   resetSnapshot: () => void
 }
 
-const STATUS_I18N_MAP: Record<string, string> = {
+const STATUS_I18N_MAP: Record<string, I18nKey> = {
   complete: 'task.task-complete',
   error: 'task.task-error',
   removed: 'task.task-removed',
 }
 
 export function useAdvancedActions(deps: AdvancedActionsDeps) {
-  const { t, message, taskStore, historyStore, preferenceStore, form, buildForm, resetSnapshot } = deps
+  const { t, message, historyStore, preferenceStore, form, buildForm, resetSnapshot } = deps
 
   const dialog = useDialog()
-  const { restartEngine } = useEngineRestart()
+  const engineStore = useEngineStore()
 
   // ── DB Browse state ──────────────────────────────────────────────────
   const showDbBrowse = ref(false)
@@ -162,48 +158,18 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
 
   // ── Handlers ─────────────────────────────────────────────────────────
 
-  function handleManualRestart(rpcListenPort: number, rpcSecret: string) {
-    const port = rpcListenPort || ENGINE_RPC_PORT
-    const secret = rpcSecret || ''
-    const d = dialog.info({
-      title: t('preferences.engine-restart-title'),
-      content: t('preferences.engine-restart-manual-confirm'),
-      positiveText: t('preferences.engine-restart-now'),
-      negativeText: t('preferences.engine-restart-later'),
-      maskClosable: false,
-      onPositiveClick: async () => {
-        d.loading = true
-        d.negativeText = ''
-        d.closable = false
-        message.info(t('preferences.engine-restarting'))
-        await new Promise((r) => requestAnimationFrame(r))
-        await restartEngine({ port, secret })
-      },
-    })
-  }
-
-  function handleSessionReset() {
+  function handleEngineStateReset() {
     dialog.error({
-      title: t('preferences.clear-all-tasks'),
-      content: t('preferences.clear-all-tasks-confirm'),
+      title: t('preferences.reset-engine-state'),
+      content: t('preferences.reset-engine-state-confirm'),
       positiveText: t('app.yes'),
       negativeText: t('app.no'),
       onPositiveClick: async () => {
         try {
-          const { fetchTaskList } = await import('@/api/aria2')
-          const [activeTasks, stoppedTasks] = await Promise.all([
-            fetchTaskList({ type: 'active' }),
-            fetchTaskList({ type: 'stopped' }),
-          ])
-          const allGids = [...activeTasks, ...stoppedTasks].map((t) => t.gid)
-          if (allGids.length > 0) {
-            await taskStore.batchRemoveTask(allGids)
-          }
-          await taskStore.purgeTaskRecord()
-          await invoke('clear_session_file')
-          message.success(t('preferences.clear-all-tasks-success'))
+          await engineStore.recoverRuntimeState()
+          message.success(t('preferences.reset-engine-state-success'))
         } catch (e) {
-          logger.error('Advanced.sessionReset', e)
+          logger.error('Advanced.engineStateReset', e)
         }
       },
     })
@@ -227,7 +193,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
             positiveText: t('preferences.restart-now'),
             negativeText: t('app.cancel'),
             onPositiveClick: async () => {
-              await invoke('stop_engine_command')
+              await engineStore.stop('appRelaunch')
               relaunch()
             },
           })
@@ -244,8 +210,8 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
       negativeText: t('app.no'),
       onPositiveClick: async () => {
         try {
+          await engineStore.stop('appRelaunch')
           await invoke('factory_reset')
-          await invoke('stop_engine_command')
           relaunch()
         } catch (e) {
           logger.error('Advanced.factoryReset', e)
@@ -407,7 +373,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
             message.error(t('preferences.import-settings-failed'))
             return
           }
-          await invoke('save_system_config', { config: buildSystemConfigFromAppConfig(imported, imported.dir) })
+          await invoke('replace_system_config', { config: buildSystemConfigFromAppConfig(imported, imported.dir) })
           Object.assign(form.value, buildForm())
           resetSnapshot()
           message.success(t('preferences.import-settings-success'))
@@ -418,7 +384,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
             negativeText: t('preferences.engine-restart-later'),
             maskClosable: false,
             onPositiveClick: async () => {
-              await invoke('stop_engine_command')
+              await engineStore.stop('appRelaunch')
               await relaunch()
             },
           })
@@ -489,8 +455,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
     exportingSettings,
     importingSettings,
     // Handlers
-    handleManualRestart,
-    handleSessionReset,
+    handleEngineStateReset,
     handleRestoreDefaults,
     handleFactoryReset,
     handleDbIntegrityCheck,

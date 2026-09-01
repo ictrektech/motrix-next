@@ -76,9 +76,9 @@ describe('normalizeUriLines', () => {
     expect(normalizeUriLines(long)).toEqual([long])
   })
 
-  it('does NOT convert 64-char hex (SHA-256/BT v2 — unsupported by aria2)', () => {
+  it('converts a bare BitTorrent v2 hash', () => {
     const sha256 = 'aabbccddee00112233445566778899aabbccddee00112233445566778899aabb'
-    expect(normalizeUriLines(sha256)).toEqual([sha256])
+    expect(normalizeUriLines(sha256)).toEqual([`magnet:?xt=urn:btmh:1220${sha256}`])
   })
 
   it('does not touch already-prefixed magnet URIs', () => {
@@ -271,8 +271,8 @@ describe('detectKind', () => {
     expect(detectKind('https://example.com/file.zip')).toBe('uri')
   })
 
-  it('classifies FTP URLs with .torrent as uri', () => {
-    expect(detectKind('ftp://mirror.example.com/pub/file.torrent')).toBe('uri')
+  it('classifies SFTP URLs with .torrent as uri', () => {
+    expect(detectKind('sftp://mirror.example.com/pub/file.torrent')).toBe('uri')
   })
 
   // ── 3. Local file paths ───────────────────────────────────────────
@@ -439,8 +439,8 @@ describe('extractDecodedFilename', () => {
     expect(extractDecodedFilename('http://example.com/bad%ZZname.txt')).toBe('bad%ZZname.txt')
   })
 
-  it('handles FTP URIs', () => {
-    expect(extractDecodedFilename('ftp://ftp.example.com/pub/file%20name.tar.gz')).toBe('file name.tar.gz')
+  it('handles SFTP URIs', () => {
+    expect(extractDecodedFilename('sftp://files.example.com/pub/file%20name.tar.gz')).toBe('file name.tar.gz')
   })
 
   it('returns empty string for blob URIs', () => {

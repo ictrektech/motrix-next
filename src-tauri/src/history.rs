@@ -111,8 +111,16 @@ impl HistoryDb {
                 status = excluded.status,
                 task_type = excluded.task_type,
                 added_at = COALESCE(download_history.added_at, excluded.added_at),
-                completed_at = excluded.completed_at,
-                meta = excluded.meta",
+                completed_at = CASE
+                    WHEN download_history.status = 'complete' AND excluded.status = 'complete'
+                    THEN COALESCE(download_history.completed_at, excluded.completed_at)
+                    ELSE excluded.completed_at
+                END,
+                meta = CASE
+                    WHEN download_history.meta IS NULL THEN excluded.meta
+                    WHEN excluded.meta IS NULL THEN download_history.meta
+                    ELSE json_patch(download_history.meta, excluded.meta)
+                END",
             params![
                 record.gid,
                 record.name,
@@ -127,6 +135,17 @@ impl HistoryDb {
             ],
         )?;
         Ok(())
+    }
+
+    /// Returns whether a lifecycle record already exists for the GID.
+    pub async fn contains_record(&self, gid: &str) -> Result<bool, AppError> {
+        let conn = self.conn.lock().await;
+        let exists = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM download_history WHERE gid = ?1)",
+            params![gid],
+            |row| row.get(0),
+        )?;
+        Ok(exists)
     }
 
     /// Query records, optionally filtered by status.
@@ -166,16 +185,48 @@ impl HistoryDb {
         Ok(())
     }
 
+    /// Remove every persisted record owned by a deleted task.
+    pub async fn remove_task_records(
+        &self,
+        gid: &str,
+        info_hash: Option<&str>,
+    ) -> Result<(), AppError> {
+        let mut conn = self.conn.lock().await;
+        let transaction = conn.transaction()?;
+        transaction.execute("DELETE FROM download_history WHERE gid = ?1", params![gid])?;
+        if let Some(info_hash) = info_hash.filter(|value| !value.is_empty()) {
+            transaction.execute(
+                "DELETE FROM download_history WHERE json_extract(meta, '$.infoHash') = ?1",
+                params![info_hash],
+            )?;
+        }
+        transaction.execute("DELETE FROM task_birth WHERE gid = ?1", params![gid])?;
+        transaction.commit()?;
+        Ok(())
+    }
+
     /// Clear all records, optionally filtered by status.
     pub async fn clear_records(&self, status: Option<&str>) -> Result<(), AppError> {
-        let conn = self.conn.lock().await;
+        let mut conn = self.conn.lock().await;
+        let transaction = conn.transaction()?;
         if let Some(status) = status {
-            conn.execute(
+            transaction.execute(
+                "DELETE FROM task_birth WHERE gid IN (SELECT gid FROM download_history WHERE status = ?1)",
+                params![status],
+            )?;
+            transaction.execute(
                 "DELETE FROM download_history WHERE status = ?1",
                 params![status],
             )?;
         } else {
-            conn.execute("DELETE FROM download_history", [])?;
+            transaction.execute(
+                "DELETE FROM task_birth WHERE gid IN (SELECT gid FROM download_history)",
+                [],
+            )?;
+            transaction.execute("DELETE FROM download_history", [])?;
+        }
+        transaction.commit()?;
+        if status.is_none() {
             conn.execute_batch("VACUUM")?;
         }
         Ok(())
@@ -325,17 +376,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upsert_preserves_added_at() {
+    async fn contains_record_checks_lifecycle_gid() {
+        let db = HistoryDb::open_in_memory().unwrap();
+        assert!(!db.contains_record("gid001").await.unwrap());
+
+        db.add_record(&make_record("gid001", "test.zip", "complete"))
+            .await
+            .unwrap();
+
+        assert!(db.contains_record("gid001").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn upsert_preserves_completion_timestamps_and_merges_meta() {
         let db = HistoryDb::open_in_memory().unwrap();
         let rec1 = HistoryRecord {
             added_at: Some("2025-01-01T00:00:00Z".to_string()),
-            ..make_record("gid001", "test.zip", "active")
+            meta: Some(r#"{"infoHash":"abc"}"#.to_string()),
+            ..make_record("gid001", "test.zip", "complete")
         };
         db.add_record(&rec1).await.unwrap();
 
         // Upsert with a different added_at — COALESCE should preserve the original
         let rec2 = HistoryRecord {
             added_at: Some("2025-06-01T00:00:00Z".to_string()),
+            completed_at: Some("2025-06-01T01:00:00Z".to_string()),
+            meta: Some(r#"{"sharingTime":"3600"}"#.to_string()),
             status: "complete".to_string(),
             ..make_record("gid001", "test-updated.zip", "complete")
         };
@@ -345,8 +411,15 @@ mod tests {
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].name, "test-updated.zip");
         assert_eq!(records[0].status, "complete");
-        // added_at preserved from first insert (COALESCE keeps original)
         assert_eq!(records[0].added_at.as_deref(), Some("2025-01-01T00:00:00Z"));
+        assert_eq!(
+            records[0].completed_at.as_deref(),
+            Some("2025-01-01T01:00:00Z")
+        );
+        let meta: serde_json::Value =
+            serde_json::from_str(records[0].meta.as_deref().unwrap()).unwrap();
+        assert_eq!(meta["infoHash"], "abc");
+        assert_eq!(meta["sharingTime"], "3600");
     }
 
     #[tokio::test]
@@ -401,6 +474,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn remove_task_records_clears_history_and_birth() {
+        let db = HistoryDb::open_in_memory().unwrap();
+        db.add_record(&make_record("gid001", "test.zip", "complete"))
+            .await
+            .unwrap();
+        db.record_task_birth("gid001", "2025-01-01T00:00:00Z")
+            .await
+            .unwrap();
+
+        db.remove_task_records("gid001", None).await.unwrap();
+
+        assert!(db.get_records(None, None).await.unwrap().is_empty());
+        assert_eq!(db.get_task_birth("gid001").await.unwrap(), None);
+    }
+
+    #[tokio::test]
     async fn clear_records_by_status() {
         let db = HistoryDb::open_in_memory().unwrap();
         db.add_record(&make_record("g1", "a.zip", "complete"))
@@ -409,12 +498,23 @@ mod tests {
         db.add_record(&make_record("g2", "b.zip", "error"))
             .await
             .unwrap();
+        db.record_task_birth("g1", "2025-01-01T00:00:00Z")
+            .await
+            .unwrap();
+        db.record_task_birth("g2", "2025-01-02T00:00:00Z")
+            .await
+            .unwrap();
 
         db.clear_records(Some("error")).await.unwrap();
 
         let records = db.get_records(None, None).await.unwrap();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].gid, "g1");
+        assert_eq!(
+            db.get_task_birth("g1").await.unwrap().as_deref(),
+            Some("2025-01-01T00:00:00Z")
+        );
+        assert_eq!(db.get_task_birth("g2").await.unwrap(), None);
     }
 
     #[tokio::test]

@@ -75,6 +75,10 @@
   max-width: 100%;
 }
 
+.pref-action-button--compact {
+  min-width: fit-content;
+}
+
 .pref-icon-button {
   padding: 0 10px;
 }

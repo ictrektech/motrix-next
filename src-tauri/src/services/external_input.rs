@@ -104,7 +104,7 @@ pub fn route_external_inputs(
     }
 
     let window_was_alive = app.get_webview_window("main").is_some();
-    log::info!(
+    log::debug!(
         "external_input:route source={source} count={} window_alive={window_was_alive} silent={silent}",
         inputs.len()
     );

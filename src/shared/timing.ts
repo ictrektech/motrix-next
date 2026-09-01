@@ -27,6 +27,9 @@ export const ENGINE_RETRY_INTERVAL = 500
 /** Maximum number of engine health-check retries before giving up. */
 export const ENGINE_MAX_RETRIES = 10
 
+/** Time the successful engine recovery state remains visible (ms). */
+export const ENGINE_RECOVERY_SUCCESS_DURATION = 1200
+
 /** Default duration for notification messages (ms). */
 export const MESSAGE_DURATION = 3000
 

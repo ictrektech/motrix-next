@@ -59,21 +59,21 @@ pub fn check(app_data_dir: &Path) {
         unknown
     );
 
-    let locale = detect_locale(app_data_dir);
-    let (title, body, ok_label, cancel_label) = get_dialog_texts(&locale);
+    let locale = crate::i18n::resolve_supported_locale(&detect_locale(app_data_dir));
+    let texts = crate::i18n::database_conflict_texts(&locale);
 
     let result = rfd::MessageDialog::new()
         .set_level(rfd::MessageLevel::Warning)
-        .set_title(title)
-        .set_description(body)
+        .set_title(&texts.title)
+        .set_description(&texts.body)
         .set_buttons(rfd::MessageButtons::OkCancelCustom(
-            ok_label.to_string(),
-            cancel_label.to_string(),
+            texts.confirm.clone(),
+            texts.cancel,
         ))
         .show();
 
     match result {
-        rfd::MessageDialogResult::Custom(ref s) if s == ok_label => {
+        rfd::MessageDialogResult::Custom(ref selection) if selection == &texts.confirm => {
             log::info!("db_guard: user chose RESET — deleting history.db");
             delete_db_files(app_data_dir);
         }
@@ -162,7 +162,7 @@ fn detect_locale(app_data_dir: &Path) -> String {
                 .and_then(|p| p.get("locale"))
                 .and_then(|v| v.as_str())
             {
-                if !locale.is_empty() {
+                if !locale.is_empty() && locale != "auto" {
                     return locale.to_string();
                 }
             }
@@ -171,258 +171,6 @@ fn detect_locale(app_data_dir: &Path) -> String {
 
     // 2. System locale
     sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string())
-}
-
-// ─── i18n: 27 locale translations ───────────────────────────────────
-
-/// Returns `(title, description, ok_label, cancel_label)` for the conflict dialog.
-fn get_dialog_texts(locale: &str) -> (&'static str, &'static str, &'static str, &'static str) {
-    match locale {
-        "zh-CN" => (
-            "数据库版本不兼容",
-            "下载历史数据库由更新版本的 Motrix Next 创建，\n\
-             与当前版本不兼容。\n\n\
-             继续使用需要重置下载历史记录。\n\
-             已下载的文件不会受到影响。",
-            "重置并启动",
-            "退出",
-        ),
-        "zh-TW" => (
-            "資料庫版本不相容",
-            "下載歷史資料庫由更新版本的 Motrix Next 建立，\n\
-             與目前版本不相容。\n\n\
-             繼續使用需要重設下載歷史記錄。\n\
-             已下載的檔案不會受到影響。",
-            "重設並啟動",
-            "退出",
-        ),
-        "ja" => (
-            "データベースバージョンの不一致",
-            "ダウンロード履歴データベースは新しいバージョンの Motrix Next で作成されたため、\
-             このバージョンとは互換性がありません。\n\n\
-             続行するにはダウンロード履歴をリセットする必要があります。\n\
-             ダウンロード済みファイルには影響しません。",
-            "リセットして起動",
-            "終了",
-        ),
-        "ko" => (
-            "데이터베이스 버전 충돌",
-            "다운로드 기록 데이터베이스가 최신 버전의 Motrix Next에서 생성되어 \
-             현재 버전과 호환되지 않습니다.\n\n\
-             계속하려면 다운로드 기록을 초기화해야 합니다.\n\
-             다운로드된 파일은 영향을 받지 않습니다.",
-            "초기화 후 시작",
-            "종료",
-        ),
-        "ar" => (
-            "تعارض في إصدار قاعدة البيانات",
-            "تم إنشاء قاعدة بيانات سجل التنزيل بواسطة إصدار أحدث من Motrix Next \
-             وهي غير متوافقة مع هذا الإصدار.\n\n\
-             للمتابعة، يجب إعادة تعيين سجل التنزيل.\n\
-             لن تتأثر الملفات التي تم تنزيلها.",
-            "إعادة تعيين وبدء",
-            "خروج",
-        ),
-        "bg" => (
-            "Конфликт на версиите на базата данни",
-            "Базата данни с история на изтеглянията е създадена от по-нова версия на Motrix Next \
-             и е несъвместима с тази версия.\n\n\
-             За да продължите, историята на изтеглянията трябва да бъде нулирана.\n\
-             Вашите изтеглени файлове НЯМА да бъдат засегнати.",
-            "Нулиране и стартиране",
-            "Изход",
-        ),
-        "ca" => (
-            "Conflicte de versió de la base de dades",
-            "La base de dades de l'historial de baixades va ser creada per una versió més nova de \
-             Motrix Next i no és compatible amb aquesta versió.\n\n\
-             Per continuar, l'historial de baixades s'ha de restablir.\n\
-             Els fitxers baixats NO es veuran afectats.",
-            "Restablir i iniciar",
-            "Sortir",
-        ),
-        "de" => (
-            "Datenbankversionskonflikt",
-            "Die Download-Verlaufsdatenbank wurde von einer neueren Version von Motrix Next \
-             erstellt und ist mit dieser Version nicht kompatibel.\n\n\
-             Um fortzufahren, muss der Download-Verlauf zurückgesetzt werden.\n\
-             Ihre heruntergeladenen Dateien sind davon nicht betroffen.",
-            "Zurücksetzen und starten",
-            "Beenden",
-        ),
-        "el" => (
-            "Σύγκρουση έκδοσης βάσης δεδομένων",
-            "Η βάση δεδομένων ιστορικού λήψεων δημιουργήθηκε από μια νεότερη έκδοση του Motrix Next \
-             και δεν είναι συμβατή με αυτήν την έκδοση.\n\n\
-             Για να συνεχίσετε, το ιστορικό λήψεων πρέπει να επαναφερθεί.\n\
-             Τα αρχεία που έχετε κατεβάσει ΔΕΝ θα επηρεαστούν.",
-            "Επαναφορά και εκκίνηση",
-            "Έξοδος",
-        ),
-        "es" => (
-            "Conflicto de versión de la base de datos",
-            "La base de datos del historial de descargas fue creada por una versión más reciente de \
-             Motrix Next y no es compatible con esta versión.\n\n\
-             Para continuar, se debe restablecer el historial de descargas.\n\
-             Los archivos descargados NO se verán afectados.",
-            "Restablecer e iniciar",
-            "Salir",
-        ),
-        "fa" => (
-            "تعارض نسخه پایگاه داده",
-            "پایگاه داده تاریخچه دانلود توسط نسخه جدیدتری از Motrix Next ایجاد شده \
-             و با این نسخه سازگار نیست.\n\n\
-             برای ادامه، تاریخچه دانلود باید بازنشانی شود.\n\
-             فایل‌های دانلود شده تحت تأثیر قرار نخواهند گرفت.",
-            "بازنشانی و شروع",
-            "خروج",
-        ),
-        "fr" => (
-            "Conflit de version de la base de données",
-            "La base de données de l'historique des téléchargements a été créée par une version \
-             plus récente de Motrix Next et n'est pas compatible avec cette version.\n\n\
-             Pour continuer, l'historique des téléchargements doit être réinitialisé.\n\
-             Vos fichiers téléchargés ne seront PAS affectés.",
-            "Réinitialiser et démarrer",
-            "Quitter",
-        ),
-        "hu" => (
-            "Adatbázis verzióütközés",
-            "A letöltési előzmények adatbázisát a Motrix Next egy újabb verziója hozta létre, \
-             és nem kompatibilis ezzel a verzióval.\n\n\
-             A folytatáshoz a letöltési előzményeket vissza kell állítani.\n\
-             A letöltött fájlokat ez NEM érinti.",
-            "Visszaállítás és indítás",
-            "Kilépés",
-        ),
-        "hi" => (
-            "डेटाबेस संस्करण असंगत है",
-            "डाउनलोड इतिहास डेटाबेस Motrix Next के नए संस्करण से बनाया गया है \
-             और इस संस्करण के साथ संगत नहीं है।\n\n\
-             जारी रखने के लिए डाउनलोड इतिहास रीसेट करना होगा।\n\
-             डाउनलोड की गई फ़ाइलों पर कोई असर नहीं पड़ेगा।",
-            "रीसेट करके शुरू करें",
-            "बाहर निकलें",
-        ),
-        "id" => (
-            "Konflik Versi Database",
-            "Database riwayat unduhan dibuat oleh versi Motrix Next yang lebih baru \
-             dan tidak kompatibel dengan versi ini.\n\n\
-             Untuk melanjutkan, riwayat unduhan harus direset.\n\
-             File yang sudah diunduh TIDAK akan terpengaruh.",
-            "Reset dan Mulai",
-            "Keluar",
-        ),
-        "it" => (
-            "Conflitto versione database",
-            "Il database della cronologia download è stato creato da una versione più recente di \
-             Motrix Next e non è compatibile con questa versione.\n\n\
-             Per continuare, la cronologia download deve essere reimpostata.\n\
-             I file scaricati NON saranno interessati.",
-            "Reimposta e avvia",
-            "Esci",
-        ),
-        "nb" => (
-            "Databaseversjonskonflikt",
-            "Nedlastingshistorikkdatabasen ble opprettet av en nyere versjon av Motrix Next \
-             og er ikke kompatibel med denne versjonen.\n\n\
-             For å fortsette må nedlastingshistorikken tilbakestilles.\n\
-             De nedlastede filene dine vil IKKE bli påvirket.",
-            "Tilbakestill og start",
-            "Avslutt",
-        ),
-        "nl" => (
-            "Databaseversieconflict",
-            "De downloaddatabase is aangemaakt door een nieuwere versie van Motrix Next \
-             en is niet compatibel met deze versie.\n\n\
-             Om door te gaan moet de downloadgeschiedenis worden gereset.\n\
-             Uw gedownloade bestanden worden NIET beïnvloed.",
-            "Resetten en starten",
-            "Afsluiten",
-        ),
-        "pl" => (
-            "Konflikt wersji bazy danych",
-            "Baza danych historii pobierania została utworzona przez nowszą wersję Motrix Next \
-             i jest niezgodna z tą wersją.\n\n\
-             Aby kontynuować, historia pobierania musi zostać zresetowana.\n\
-             Pobrane pliki NIE zostaną zmienione.",
-            "Resetuj i uruchom",
-            "Wyjdź",
-        ),
-        "pt-BR" => (
-            "Conflito de versão do banco de dados",
-            "O banco de dados do histórico de downloads foi criado por uma versão mais recente do \
-             Motrix Next e é incompatível com esta versão.\n\n\
-             Para continuar, o histórico de downloads precisa ser redefinido.\n\
-             Seus arquivos baixados NÃO serão afetados.",
-            "Redefinir e iniciar",
-            "Sair",
-        ),
-        "ro" => (
-            "Conflict de versiune a bazei de date",
-            "Baza de date a istoricului descărcărilor a fost creată de o versiune mai nouă \
-             a Motrix Next și este incompatibilă cu această versiune.\n\n\
-             Pentru a continua, istoricul descărcărilor trebuie resetat.\n\
-             Fișierele descărcate NU vor fi afectate.",
-            "Resetare și pornire",
-            "Ieșire",
-        ),
-        "ru" => (
-            "Конфликт версий базы данных",
-            "База данных истории загрузок была создана более новой версией Motrix Next \
-             и несовместима с текущей версией.\n\n\
-             Для продолжения необходимо сбросить историю загрузок.\n\
-             Загруженные файлы НЕ будут затронуты.",
-            "Сбросить и запустить",
-            "Выход",
-        ),
-        "th" => (
-            "ฐานข้อมูลเวอร์ชันขัดแย้ง",
-            "ฐานข้อมูลประวัติการดาวน์โหลดถูกสร้างโดย Motrix Next เวอร์ชันใหม่กว่า \
-             และไม่สามารถใช้งานร่วมกับเวอร์ชันนี้ได้\n\n\
-             หากต้องการดำเนินการต่อ จะต้องรีเซ็ตประวัติการดาวน์โหลด\n\
-             ไฟล์ที่ดาวน์โหลดแล้วจะไม่ได้รับผลกระทบ",
-            "รีเซ็ตและเริ่มต้น",
-            "ออก",
-        ),
-        "tr" => (
-            "Veritabanı Sürüm Uyumsuzluğu",
-            "İndirme geçmişi veritabanı Motrix Next'in daha yeni bir sürümü tarafından \
-             oluşturulmuş olup bu sürümle uyumlu değildir.\n\n\
-             Devam etmek için indirme geçmişi sıfırlanmalıdır.\n\
-             İndirilen dosyalarınız etkilenmeyecektir.",
-            "Sıfırla ve başlat",
-            "Çıkış",
-        ),
-        "uk" => (
-            "Конфлікт версій бази даних",
-            "Базу даних історії завантажень було створено новішою версією Motrix Next, \
-             яка несумісна з поточною.\n\n\
-             Для продовження необхідно скинути історію завантажень.\n\
-             Завантажені файли НЕ будуть порушені.",
-            "Скинути та запустити",
-            "Вихід",
-        ),
-        "vi" => (
-            "Xung đột phiên bản cơ sở dữ liệu",
-            "Cơ sở dữ liệu lịch sử tải xuống được tạo bởi phiên bản Motrix Next mới hơn \
-             và không tương thích với phiên bản này.\n\n\
-             Để tiếp tục, lịch sử tải xuống cần được đặt lại.\n\
-             Các tệp đã tải xuống sẽ KHÔNG bị ảnh hưởng.",
-            "Đặt lại và khởi động",
-            "Thoát",
-        ),
-        // Default: English (covers en-US, en-GB, and any unrecognised locale)
-        _ => (
-            "Database Version Conflict",
-            "The download history database was created by a newer version of Motrix Next \
-             and is incompatible with this version.\n\n\
-             To continue, the download history must be reset.\n\
-             Your downloaded files will NOT be affected.",
-            "Reset and Start",
-            "Quit",
-        ),
-    }
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -551,20 +299,13 @@ mod tests {
     }
 
     #[test]
-    fn all_27_locales_have_translations() {
-        let locales = [
-            "ar", "bg", "ca", "de", "el", "en-US", "es", "fa", "fr", "hu", "hi", "id", "it", "ja",
-            "ko", "nb", "nl", "pl", "pt-BR", "ro", "ru", "th", "tr", "uk", "vi", "zh-CN", "zh-TW",
-        ];
-        for locale in locales {
-            let (title, body, ok_label, cancel_label) = get_dialog_texts(locale);
-            assert!(!title.is_empty(), "empty title for locale {locale}");
-            assert!(!body.is_empty(), "empty body for locale {locale}");
-            assert!(!ok_label.is_empty(), "empty ok_label for locale {locale}");
-            assert!(
-                !cancel_label.is_empty(),
-                "empty cancel_label for locale {locale}"
-            );
-        }
+    fn locale_auto_uses_system_preference() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let config = r#"{"preferences":{"locale":"auto"}}"#;
+        fs::write(dir.path().join("config.json"), config).expect("write config");
+
+        let locale = detect_locale(dir.path());
+        assert_ne!(locale, "auto");
+        assert!(!locale.is_empty());
     }
 }
