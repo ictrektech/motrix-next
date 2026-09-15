@@ -26,6 +26,8 @@ profiles:
     description:
       zh-CN: x86_64 / AMD64 平台，使用 AMD_with_cuda 发布表中的 Motrix 镜像。
       en: x86_64 / AMD64 platform, using the Motrix image from the AMD_with_cuda sheet.
+    caps:
+      arch: amd64
     conflicts: [arm]
   - name: arm
     title:
@@ -34,6 +36,8 @@ profiles:
     description:
       zh-CN: ARM64 平台，使用 ARM_with_cuda 发布表中的 Motrix 镜像。
       en: ARM64 platform, using the Motrix image from the ARM_with_cuda sheet.
+    caps:
+      arch: arm64
     conflicts: [amd]
 
 require-profiles: true
