@@ -279,11 +279,14 @@ verify_package() {
   local compose_text
   local sidebar_route
   log "Verify app.tar.gz contents"
-  tar tzf "$app_tarball" >/dev/null
-  tar tzf "$app_tarball" | grep -qx "manifest.yml"
-  tar tzf "$app_tarball" | grep -qx "icon.png"
-  tar tf "$package_path" | grep -qx "app.tar.gz"
-  ! tar tf "$package_path" | grep -q "^assets/"
+  local app_listing
+  local outer_listing
+  app_listing="$(tar tzf "$app_tarball")"
+  outer_listing="$(tar tf "$package_path")"
+  grep -qx "manifest.yml" <<<"$app_listing"
+  grep -qx "icon.png" <<<"$app_listing"
+  grep -qx "app.tar.gz" <<<"$outer_listing"
+  ! grep -q "^assets/" <<<"$outer_listing"
   package_text="$(tar tzf "$app_tarball" | while IFS= read -r file; do [[ "$file" == */ || "$file" == "icon.png" ]] && continue; tar xOf "$app_tarball" "$file"; printf '\n'; done)"
   if printf '%s' "$package_text" | grep -q '__[A-Z0-9_]\+__'; then
     die "unrendered placeholder remains"
