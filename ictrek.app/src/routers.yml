@@ -2,9 +2,9 @@ routers:
   - id: com-ictrek-motrix-next
     kind: group
     title:
-      zh-CN: Motrix Next
-      en: Motrix Next
-    icon: lucide:download-cloud
+      zh-CN: V-Burst
+      en: V-Burst
+    icon: lucide:zap
     order: 200
     children:
       - id: downloads
@@ -12,7 +12,7 @@ routers:
         title:
           zh-CN: 下载管理
           en: Downloads
-        icon: lucide:download-cloud
+        icon: lucide:zap
         iframe-src: /app/com.ictrek.motrix-next/
         order: 10
         keep-alive: true

@@ -184,6 +184,6 @@ aria2.on('exit', (code) => {
 })
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Motrix Next web listening on 0.0.0.0:${PORT}`)
+  console.log(`V-Burst web listening on 0.0.0.0:${PORT}`)
   console.log(`Download directory: ${DOWNLOAD_DIR}`)
 })

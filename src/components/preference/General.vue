@@ -294,10 +294,7 @@ onMounted(async () => {
         <NFormItem :label="t('about.app-version')">
           <MTooltip>
             <template #trigger>
-              <button
-                class="sysinfo-ver-badge"
-                @click="copyVersionToClipboard(`Rayburst v${sysAppVersion}`, 'Rayburst')"
-              >
+              <button class="sysinfo-ver-badge" @click="copyVersionToClipboard(`V-Burst v${sysAppVersion}`, 'V-Burst')">
                 <span class="sysinfo-ver-value">v{{ sysAppVersion || '\u2014' }}</span>
                 <svg class="sysinfo-ver-copy" width="14" height="14" viewBox="0 0 24 24" fill="none">
                   <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2" />

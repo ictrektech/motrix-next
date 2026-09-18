@@ -6,7 +6,7 @@ import type { Aria2Task, Aria2File, HistoryRecord, HistoryMeta } from '@shared/t
 import { normalizeSep } from '@shared/utils/autoArchive'
 import {
   collectTaskIdentityBuckets,
-  getTaskDisplayName,
+  getTaskName,
   getTaskSharingTime,
   getTaskUri,
   isBtMetadataTask,
@@ -141,7 +141,7 @@ export function historyRecordToTask(record: HistoryRecord): Aria2Task {
 }
 
 export function buildHistoryRecord(task: Aria2Task): HistoryRecord {
-  const name = getTaskDisplayName(task, { defaultName: task.gid })
+  const name = getTaskName(task, { defaultName: task.gid })
   const firstFile = task.files?.[0]
   const meta: HistoryMeta = {}
 

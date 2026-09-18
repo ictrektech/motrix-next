@@ -111,7 +111,6 @@ if (import.meta.env.PROD) {
 
     await loadLocale(resolvedLocale)
     setI18nLocale(i18n, resolvedLocale)
-    preferenceStore.flushMigrationSignals()
 
     if (!preferenceStore.config.dir || preferenceStore.config.dir === '/') {
       preferenceStore.updatePreference({ dir: webDownloadDir() })
@@ -123,10 +122,12 @@ if (import.meta.env.PROD) {
     app.mount('#app')
 
     await appStore.fetchGlobalStat(aria2Api).catch((e) => logger.debug('Web.fetchGlobalStat', e))
-    await taskStore.refreshTaskCounts().catch((e) => logger.debug('Web.refreshTaskCounts', e))
+    await taskStore.fetchList().catch((e) => logger.debug('Web.fetchList', e))
 
+    // Web builds have no Rust poller: drive speeds and the task snapshot here.
     setInterval(() => {
       appStore.fetchGlobalStat(aria2Api).catch((e) => logger.debug('Web.fetchGlobalStat', e))
+      taskStore.fetchList().catch((e) => logger.debug('Web.fetchList', e))
     }, 1000)
   }
 

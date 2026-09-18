@@ -88,19 +88,19 @@ const links = computed(() => [
     key: 'website',
     label: t('about.website'),
     icon: GlobeOutline,
-    url: 'https://rayburst.pages.dev/',
+    url: 'https://www.vivibit.com/',
   },
   {
     key: 'github',
     label: 'GitHub',
     icon: LogoGithub,
-    url: 'https://github.com/AnInsomniacy/rayburst',
+    url: 'https://github.com/ictrektech/motrix-next',
   },
   {
     key: 'release',
     label: t('about.release'),
     icon: RocketOutline,
-    url: 'https://github.com/AnInsomniacy/rayburst/releases',
+    url: 'https://github.com/ictrektech/motrix-next/releases',
   },
   {
     key: 'support',
@@ -144,17 +144,17 @@ function openUrl(url: string) {
 
       <!-- Logo -->
       <div class="about-logo stagger stagger-1">
-        <img :src="brandLogo" alt="Rayburst" width="96" height="96" />
+        <img :src="brandLogo" alt="V-Burst" width="96" height="96" />
       </div>
 
       <!-- Title -->
-      <div class="about-title stagger stagger-2">Rayburst</div>
+      <div class="about-title stagger stagger-2">V-Burst</div>
 
       <!-- Version Badges (stacked, prominent) -->
       <div class="about-versions stagger stagger-2">
         <MTooltip>
           <template #trigger>
-            <button class="version-badge" @click="copyToClipboard(`Rayburst v${appVersion}`, 'Rayburst')">
+            <button class="version-badge" @click="copyToClipboard(`V-Burst v${appVersion}`, 'V-Burst')">
               <span class="version-label">{{ t('about.app-version') }}</span>
               <span class="version-value">v{{ appVersion }}</span>
               <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -242,15 +242,15 @@ function openUrl(url: string) {
       <div class="about-footer stagger stagger-6">
         <i18n-t keypath="about.developed-by" tag="span" scope="global">
           <template #author>
-            <a class="about-link" @click="openUrl('https://github.com/AnInsomniacy')">AnInsomniacy</a>
+            <a class="about-link" @click="openUrl('https://www.vivibit.com/')">Vivibit</a>
           </template>
         </i18n-t>
         <div class="about-legal">
-          <span>&copy; {{ year }} AnInsomniacy</span>
+          <span>&copy; {{ year }} Vivibit</span>
           <a
             class="about-link"
-            href="https://github.com/AnInsomniacy/rayburst/blob/main/LICENSE"
-            @click.prevent="openUrl('https://github.com/AnInsomniacy/rayburst/blob/main/LICENSE')"
+            href="https://github.com/ictrektech/motrix-next/blob/main/LICENSE"
+            @click.prevent="openUrl('https://github.com/ictrektech/motrix-next/blob/main/LICENSE')"
             >{{ t('about.license') }}</a
           >
         </div>

@@ -1,6 +1,6 @@
-# Motrix Next Web Service
+# V-Burst Web Service
 
-This fork adds a browser-based Motrix Next web service for Linux container deployment. The web app listens on port `47000`, proxies `/jsonrpc` to aria2, and uses `/downloads` as the default download directory.
+This fork adds a browser-based V-Burst (Motrix Next / Rayburst upstream) web service for Linux container deployment. The web app listens on port `47000`, proxies `/jsonrpc` to aria2, and uses `/downloads` as the default download directory.
 
 The original project README is preserved here: [README-UPSTREAM.md](./README-UPSTREAM.md).
 
@@ -10,7 +10,7 @@ The original project README is preserved here: [README-UPSTREAM.md](./README-UPS
 - Replaces Tauri-only APIs with browser shims when `VITE_WEB_APP=true`.
 - Proxies aria2 JSON-RPC through `/jsonrpc`.
 - Serves static web assets and aria2 from a single Docker container.
-- Uses Vivibit branding in the sidebar logo, linking to [vivibit.com](https://www.vivibit.com/).
+- Uses V-Burst branding in the sidebar logo, linking to [vivibit.com](https://www.vivibit.com/).
 
 ## Web Build
 
@@ -143,19 +143,19 @@ Use `update_version.sh` to bump `ictrek.app/VERSION`, push the VOS trigger tag, 
 
 `ictrek.app/scripts/package.sh` no longer increments or writes `ictrek.app/VERSION`. It uses the current `VERSION`, or the `PACKAGE_VERSION` value passed by GitHub Actions. The release asset name is `motrix-next_${VERSION}_pull.tar`. VOS requires the manifest version to be SemVer and routes the app through:
 
-The workflow only needs Feishu component credentials (`FEISHU_APP_ID`, `FEISHU_APP_SECRET`, optional `FEISHU_SPREADSHEET_TOKEN`). It does not use `VOS_DEPENDENCY_RELEASE_TOKEN` because Motrix Next does not resolve dependency versions from other VOS app releases.
+The workflow only needs Feishu component credentials (`FEISHU_APP_ID`, `FEISHU_APP_SECRET`, optional `FEISHU_SPREADSHEET_TOKEN`). It does not use `VOS_DEPENDENCY_RELEASE_TOKEN` because V-Burst does not resolve dependency versions from other VOS app releases.
 
 ```text
 /app/com.ictrek.motrix-next/
 ```
 
-VOS persists downloads and aria2 task state through `${MOTRIX_DOWNLOADS_PATH:-${VOS_APP_STORAGE_PATH}/downloads}:/downloads`. `MOTRIX_DOWNLOADS_PATH` is configurable in the VOS install UI; leave it empty to use the default app storage directory.
+VOS persists downloads and aria2 task state through `${MOTRIX_SHARED_PATH:-/data/vos_workspace/motrix}/downloads:/downloads`. `MOTRIX_SHARED_PATH` is configurable in the VOS install UI; leave it empty to use the default shared workspace directory.
 
 The VOS gateway redirects `/app/com.ictrek.motrix-next` to `/app/com.ictrek.motrix-next/` so relative web assets resolve under the app path.
 
 ## Desktop Code Signing
 
-Motrix Next desktop release artifacts are not code-signed on macOS or Windows, so browsers or antivirus tools may show a warning. Upstream `.sig` files are Tauri updater signatures. See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for verification details.
+V-Burst desktop release artifacts are not code-signed on macOS or Windows, so browsers or antivirus tools may show a warning. Upstream `.sig` files are Tauri updater signatures. See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for verification details.
 
 ## tc232 Deployment
 

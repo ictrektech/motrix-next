@@ -2,10 +2,10 @@ configs:
   - name: MOTRIX_SHARED_PATH
     type: path
     title:
-      zh-CN: Motrix 共享目录
-      en: Motrix Shared Directory
+      zh-CN: V-Burst 共享目录
+      en: V-Burst Shared Directory
     description:
-      zh-CN: Motrix 的公共根目录，下载文件和 aria2 session 保存在其 downloads 子目录；其他应用可通过相同共享提示选择此目录。
-      en: Public Motrix root. Downloads and the aria2 session are stored in its downloads subdirectory; other apps can select this directory through the same sharing hint.
+      zh-CN: V-Burst 的公共根目录，下载文件和 aria2 session 保存在其 downloads 子目录；其他应用可通过相同共享提示选择此目录。
+      en: Public V-Burst root. Downloads and the aria2 session are stored in its downloads subdirectory; other apps can select this directory through the same sharing hint.
     default: /data/vos_workspace/motrix
     hints: [com.ictrek.download.storage]
