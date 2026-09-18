@@ -1,6 +1,6 @@
-# Motrix Next VOS 应用
+# V-Burst VOS 应用
 
-Motrix Next 提供基于 aria2 的下载任务管理 Web UI。
+V-Burst 提供基于 aria2 的下载任务管理 Web UI。
 
 ## 访问方式
 
@@ -14,7 +14,7 @@ Motrix Next 提供基于 aria2 的下载任务管理 Web UI。
 
 ## 数据持久化
 
-安装时只选择一个 Motrix 公共根目录：
+安装时只选择一个 V-Burst 公共根目录：
 
 ```text
 ${MOTRIX_SHARED_PATH:-/data/vos_workspace/motrix}

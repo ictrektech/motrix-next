@@ -1,6 +1,6 @@
-# Motrix Next VOS 应用打包说明
+# V-Burst VOS 应用打包说明
 
-本目录包含 VOS app `com.ictrek.motrix-next` 的安装包模板。
+本目录包含 VOS app `com.ictrek.motrix-next`（应用名为 V-Burst）的安装包模板。
 发布流程以 `update_version.sh` 触发的 GitHub Actions 为准。
 
 ## 打包
@@ -82,12 +82,11 @@ https://<vos-host>:1180/app/com.ictrek.motrix-next/
 
 `manifest.yml` 保留 `frontend.enabled: true` 和 `frontend.basePath: /app/com.ictrek.motrix-next`，用于兼容当前仍从应用列表读取 `frontend_enabled/frontend_base_path` 的 VOS“我的应用”打开按钮。
 
-`routers.yml` 使用完整的 group/page 结构。真实可见页面继续作为 VOS iframe 页面，并保留 `entry-point: true` 和 `embed: true`。Compose/Traefik 会把顶层文档请求 `/app/com.ictrek.motrix-next/` 重定向到 VOS hash；iframe 请求不重定向。Motrix Next 的固定入口契约是：
+`routers.yml` 使用扁平结构：仅包含一个顶层 page，VOS 按 flatten 模式直接在第一层展示入口。页面保留 `entry-point: true` 和 `embed: true`。Compose/Traefik 会把顶层文档请求 `/app/com.ictrek.motrix-next/` 重定向到 VOS hash；iframe 请求不重定向。V-Burst 的固定入口契约是：
 
 - `app id`: `com.ictrek.motrix-next`
-- `group.id`: `com-ictrek-motrix-next`
-- sidebar page: `id=downloads`、`entry-point: true`、`embed: true`、`iframe-src: /app/com.ictrek.motrix-next/`
+- sidebar page: `id=downloads`、顶层节点、`entry-point: true`、`embed: true`、`iframe-src: /app/com.ictrek.motrix-next/`
 - top-level redirect: `Sec-Fetch-Dest: document` 的 `/app/com.ictrek.motrix-next/` 请求跳转到 VOS 内部侧边栏路径
-- VOS 内部侧边栏路径：`#/app/com.ictrek.motrix-next/com-ictrek-motrix-next/downloads`
+- VOS 内部侧边栏路径：`#/app/com.ictrek.motrix-next/downloads`
 
 `scripts/package.sh` 会在生成 `app.tar.gz` 后校验以上字段；不匹配时直接失败。新增或修改入口时必须同步更新模板和脚本校验值。

@@ -1,6 +1,6 @@
-# Motrix Next VOS App
+# V-Burst VOS App
 
-Motrix Next provides a web UI for aria2 download task management.
+V-Burst provides a web UI for aria2 download task management.
 
 ## Access
 
@@ -14,7 +14,7 @@ The app does not require a host port mapping.
 
 ## Persistence
 
-The install form selects one public Motrix root:
+The install form selects one public V-Burst root:
 
 ```text
 ${MOTRIX_SHARED_PATH:-/data/vos_workspace/motrix}
