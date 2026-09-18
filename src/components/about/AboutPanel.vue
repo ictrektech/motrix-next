@@ -1,5 +1,4 @@
 <script setup lang="ts">
-const brandLogo = '/logo.svg'
 /** @fileoverview About panel with staggered entrance animations and glass effect. */
 import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -9,6 +8,7 @@ import { LogoGithub, HeartOutline, GlobeOutline, RocketOutline } from '@vicons/i
 import { openUrl as openExternalUrl } from '@tauri-apps/plugin-opener'
 import { getVersion } from '@tauri-apps/api/app'
 import { getVersion as getAria2Version } from '@/api/aria2'
+import brandLogo from '@/assets/logo.svg'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { logger } from '@shared/logger'
 import { writeAppClipboardText } from '@shared/utils'

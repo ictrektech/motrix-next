@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512" role="img" aria-labelledby="vburst-title">
+  <title id="vburst-title">V-Burst</title>
+  <defs>
+    <linearGradient id="vburst-bg" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#182042" />
+      <stop offset="100%" stop-color="#0A0E20" />
+    </linearGradient>
+    <linearGradient id="vburst-arm-left" gradientUnits="userSpaceOnUse" x1="152" y1="148" x2="256" y2="350">
+      <stop offset="0%" stop-color="#33E0F4" />
+      <stop offset="100%" stop-color="#3E7BFA" />
+    </linearGradient>
+    <linearGradient id="vburst-arm-right" gradientUnits="userSpaceOnUse" x1="360" y1="148" x2="256" y2="350">
+      <stop offset="0%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#4F7DF9" />
+    </linearGradient>
+    <linearGradient id="vburst-bolt" gradientUnits="userSpaceOnUse" x1="256" y1="132" x2="256" y2="372">
+      <stop offset="0%" stop-color="#FFD34D" />
+      <stop offset="55%" stop-color="#FF9A3C" />
+      <stop offset="100%" stop-color="#FF5D2E" />
+    </linearGradient>
+    <radialGradient id="vburst-glow" cx="50%" cy="48%" r="50%">
+      <stop offset="0%" stop-color="#FFA24D" stop-opacity="0.16" />
+      <stop offset="70%" stop-color="#FFA24D" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#FFA24D" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#vburst-bg)" />
+  <rect x="17.5" y="17.5" width="477" height="477" rx="110.5" fill="none" stroke="#2E3A5C" stroke-width="3" />
+  <ellipse cx="256" cy="252" rx="190" ry="196" fill="url(#vburst-glow)" />
+
+  <path d="M 152 148 L 256 350" stroke="url(#vburst-arm-left)" stroke-width="54" stroke-linecap="round" fill="none" />
+  <path d="M 360 148 L 256 350" stroke="url(#vburst-arm-right)" stroke-width="54" stroke-linecap="round" fill="none" />
+  <circle cx="152" cy="148" r="13" fill="#F4F7FF" />
+  <circle cx="360" cy="148" r="13" fill="#F4F7FF" />
+
+  <path
+    d="M 283 132 L 196 272 L 247 272 L 224 372 L 316 232 L 264 232 Z"
+    fill="url(#vburst-bolt)"
+    stroke="#0C1128"
+    stroke-width="14"
+    stroke-linejoin="round"
+    paint-order="stroke"
+  />
+</svg>

@@ -1,20 +1,12 @@
 routers:
-  - id: com-ictrek-motrix-next
-    kind: group
+  - id: downloads
+    kind: page
     title:
-      zh-CN: V-Burst
-      en: V-Burst
+      zh-CN: 下载管理
+      en: Downloads
     icon: lucide:zap
     order: 200
-    children:
-      - id: downloads
-        kind: page
-        title:
-          zh-CN: 下载管理
-          en: Downloads
-        icon: lucide:zap
-        iframe-src: /app/com.ictrek.motrix-next/
-        order: 10
-        keep-alive: true
-        entry-point: true
-        embed: true
+    iframe-src: /app/com.ictrek.motrix-next/
+    keep-alive: true
+    entry-point: true
+    embed: true

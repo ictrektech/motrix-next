@@ -16,7 +16,7 @@ x-motrix-next-base: &motrix-next-base
     - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open.service=${COMPOSE_PROJECT_NAME:-motrix-next}-web"
     - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open.middlewares=${COMPOSE_PROJECT_NAME:-motrix-next}-top-open-redirect"
     - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open-redirect.redirectregex.regex=^(https?://[^/]+)/app/com\\.ictrek\\.motrix-next/?(?:\\?.*)?$"
-    - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.motrix-next/com-ictrek-motrix-next/downloads"
+    - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open-redirect.redirectregex.replacement=$${1}/#/app/com.ictrek.motrix-next/downloads"
     - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open-redirect.redirectregex.permanent=false"
     - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-web.rule=PathPrefix(`/app/com.ictrek.motrix-next`)"
     - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-web.service=${COMPOSE_PROJECT_NAME:-motrix-next}-web"

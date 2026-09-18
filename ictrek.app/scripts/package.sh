@@ -3,10 +3,9 @@ set -euo pipefail
 
 APP_NAME="motrix-next"
 APP_ID="com.ictrek.motrix-next"
-ROUTER_GROUP_ID="com-ictrek-motrix-next"
 ROUTER_PAGE_ID="downloads"
 ROUTER_IFRAME_SRC="/app/com.ictrek.motrix-next/"
-ROUTER_HASH_PATH="#/app/com.ictrek.motrix-next/com-ictrek-motrix-next/downloads"
+ROUTER_HASH_PATH="#/app/com.ictrek.motrix-next/downloads"
 FRONTEND_BASE_PATH="/app/com.ictrek.motrix-next"
 SPREADSHEET_TOKEN="${FEISHU_SPREADSHEET_TOKEN:-Htotsn3oahO1zxt73YMcaB1zn8e}"
 FEISHU_CONFIG_FILE="${FEISHU_CONFIG_FILE:-${HOME}/.feishu.components.json}"
@@ -316,13 +315,13 @@ verify_package() {
     die "docker-compose.yml redirect must target ${ROUTER_HASH_PATH}"
   fi
   routers_text="$(tar xOf "$app_tarball" routers.yml)"
-  if ! printf '%s\n' "$routers_text" | grep -Fq "  - id: ${ROUTER_GROUP_ID}"; then
-    die "routers.yml must declare top-level group id ${ROUTER_GROUP_ID}"
+  if ! printf '%s\n' "$routers_text" | grep -Fq "  - id: ${ROUTER_PAGE_ID}"; then
+    die "routers.yml must declare top-level page id ${ROUTER_PAGE_ID}"
   fi
-  if ! printf '%s\n' "$routers_text" | grep -Fq "      - id: ${ROUTER_PAGE_ID}"; then
-    die "routers.yml must declare sidebar page id ${ROUTER_PAGE_ID}"
+  if printf '%s\n' "$routers_text" | grep -Fq "kind: group"; then
+    die "routers.yml must stay flat (single first-level page, no groups)"
   fi
-  if ! printf '%s\n' "$routers_text" | grep -Fq "        iframe-src: ${ROUTER_IFRAME_SRC}"; then
+  if ! printf '%s\n' "$routers_text" | grep -Fq "    iframe-src: ${ROUTER_IFRAME_SRC}"; then
     die "routers.yml sidebar iframe-src must be ${ROUTER_IFRAME_SRC}"
   fi
   if printf '%s\n' "$routers_text" | grep -Eq 'iframe-src:[[:space:]]*https?://'; then
@@ -334,7 +333,7 @@ verify_package() {
   if ! printf '%s\n' "$routers_text" | grep -q 'embed:[[:space:]]*true'; then
     die "routers.yml must declare embed: true for sidebar iframe"
   fi
-  sidebar_route="#/app/${APP_ID}/${ROUTER_GROUP_ID}/${ROUTER_PAGE_ID}"
+  sidebar_route="#/app/${APP_ID}/${ROUTER_PAGE_ID}"
   log "VOS sidebar route: ${sidebar_route}"
 }
 

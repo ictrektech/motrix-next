@@ -65,16 +65,35 @@ export async function invokeAria2<T>(command: string, args: Record<string, unkno
       return tasks.map((task) => camelTask(task)) as T
     }
     case 'aria2_fetch_task_list': {
-      const type = args.type === 'stopped' ? 'stopped' : 'active'
+      // Mirrors the Rust snapshot: "all" = active + waiting + stopped, deduped by GID.
       const limit = Number(args.limit ?? 1000)
-      const tasks =
-        type === 'stopped'
-          ? await rpc<unknown[]>('aria2.tellStopped', [0, Number.isFinite(limit) ? limit : 1000])
-          : [
-              ...(await rpc<unknown[]>('aria2.tellActive')),
-              ...(await rpc<unknown[]>('aria2.tellWaiting', [0, Number.isFinite(limit) ? limit : 1000])),
-            ]
-      return tasks.map((task) => camelTask(task)) as T
+      const bound = Number.isFinite(limit) ? limit : 1000
+      const camel = (tasks: unknown[]) => tasks.map((task) => camelTask(task))
+      if (args.type === 'stopped') {
+        return camel(await rpc<unknown[]>('aria2.tellStopped', [0, bound])) as T
+      }
+      if (args.type !== 'all') {
+        const tasks = [
+          ...(await rpc<unknown[]>('aria2.tellActive')),
+          ...(await rpc<unknown[]>('aria2.tellWaiting', [0, bound])),
+        ]
+        return camel(tasks) as T
+      }
+      const seen = new Set<string>()
+      const tasks: unknown[] = []
+      for (const page of await Promise.all([
+        rpc<unknown[]>('aria2.tellActive'),
+        rpc<unknown[]>('aria2.tellWaiting', [0, bound]),
+        rpc<unknown[]>('aria2.tellStopped', [0, bound]),
+      ])) {
+        for (const task of page) {
+          const gid = (task as { gid?: string }).gid ?? ''
+          if (gid && seen.has(gid)) continue
+          if (gid) seen.add(gid)
+          tasks.push(task)
+        }
+      }
+      return camel(tasks) as T
     }
     case 'aria2_fetch_task_item': {
       return camelTask(await rpc('aria2.tellStatus', [args.gid as string])) as T

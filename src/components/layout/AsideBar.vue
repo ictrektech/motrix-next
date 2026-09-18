@@ -7,8 +7,7 @@ import { useAppStore } from '@/stores/app'
 import { NIcon } from 'naive-ui'
 import MTooltip from '@/components/common/MTooltip.vue'
 import { ListOutline, AddOutline, SettingsOutline, HelpCircleOutline } from '@vicons/ionicons5'
-
-const brandLogo = '/logo.svg'
+import brandLogo from '@/assets/logo.svg'
 
 const { t } = useI18n()
 const router = useRouter()
