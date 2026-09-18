@@ -3,11 +3,12 @@
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import vivibitLogo from '@/assets/vivibit-logo.png'
 
 import { NIcon } from 'naive-ui'
 import MTooltip from '@/components/common/MTooltip.vue'
 import { ListOutline, AddOutline, SettingsOutline, HelpCircleOutline } from '@vicons/ionicons5'
+
+const brandLogo = '/logo.svg'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -34,9 +35,9 @@ function showAddTask() {
           href="https://www.vivibit.com/"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Vivibit"
+          aria-label="V-Burst"
         >
-          <img :src="vivibitLogo" alt="Vivibit" />
+          <img :src="brandLogo" alt="V-Burst" />
         </a>
       </h1>
       <ul class="menu top-menu" data-tauri-drag-region>

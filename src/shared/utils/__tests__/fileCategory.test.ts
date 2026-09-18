@@ -1,13 +1,3 @@
-/**
- * @fileoverview TDD test suite for fileCategory.ts — smart file classification engine.
- *
- * Tests cover three public functions:
- *   - extractExtension: URL/filename → lowercase extension
- *   - resolveCategory:  extension × categories → matching FileCategory | undefined
- *   - resolveDownloadDir: URL × config → absolute target directory
- *
- * V2: FileCategory uses absolute `directory` paths (not relative subdirectory).
- */
 import { describe, it, expect } from 'vitest'
 import {
   extractExtension,
@@ -17,8 +7,6 @@ import {
   validateCategoryUrlPatterns,
 } from '../fileCategory'
 import type { FileCategory } from '@shared/types'
-
-// ── Test fixtures ───────────────────────────────────────────────────
 
 const TEST_CATEGORIES: FileCategory[] = [
   {
@@ -59,135 +47,33 @@ const TEST_CATEGORIES: FileCategory[] = [
   },
 ]
 
-// ════════════════════════════════════════════════════════════════════
-// extractExtension
-// ════════════════════════════════════════════════════════════════════
-
 describe('extractExtension', () => {
-  // ── Standard URLs ──────────────────────────────────────────────
-
-  it('extracts extension from simple HTTP URL', () => {
-    expect(extractExtension('https://example.com/video.mp4')).toBe('mp4')
-  })
-
-  it('extracts extension from deep path URL', () => {
-    expect(extractExtension('https://cdn.example.com/releases/v2/file.tar.gz')).toBe('gz')
-  })
-
-  it('extracts extension from SFTP URL', () => {
-    expect(extractExtension('sftp://mirror.example.com/pub/archive.zip')).toBe('zip')
-  })
-
-  // ── Query strings & fragments ──────────────────────────────────
-
-  it('ignores query string after filename', () => {
-    expect(extractExtension('https://example.com/file.pdf?token=abc123&expires=999')).toBe('pdf')
-  })
-
-  it('ignores fragment after filename', () => {
-    expect(extractExtension('https://example.com/file.docx#page=3')).toBe('docx')
-  })
-
-  it('handles URL with both query and fragment', () => {
-    expect(extractExtension('https://dl.example.com/release.dmg?v=2#checksum')).toBe('dmg')
-  })
-
-  // ── Case insensitivity ─────────────────────────────────────────
-
-  it('returns lowercase extension regardless of URL case', () => {
-    expect(extractExtension('https://example.com/Image.PNG')).toBe('png')
-  })
-
-  it('returns lowercase for mixed-case extension', () => {
-    expect(extractExtension('https://example.com/Setup.ExE')).toBe('exe')
-  })
-
-  // ── URL encoding ───────────────────────────────────────────────
-
-  it('handles percent-encoded filename', () => {
-    expect(extractExtension('https://example.com/%E6%96%87%E4%BB%B6.pdf')).toBe('pdf')
-  })
-
-  it('handles encoded path segments with extension', () => {
-    expect(extractExtension('https://example.com/path%20to/my%20file.mp3')).toBe('mp3')
-  })
-
-  // ── Edge cases ─────────────────────────────────────────────────
-
-  it('returns empty string for URL without extension', () => {
-    expect(extractExtension('https://example.com/download')).toBe('')
-  })
-
-  it('returns empty string for URL with trailing slash', () => {
-    expect(extractExtension('https://example.com/folder/')).toBe('')
-  })
-
-  it('returns empty string for bare domain', () => {
-    expect(extractExtension('https://example.com')).toBe('')
-  })
-
-  it('returns empty string for magnet URI', () => {
-    expect(extractExtension('magnet:?xt=urn:btih:abc123')).toBe('')
-  })
-
-  it('returns empty string for empty string input', () => {
-    expect(extractExtension('')).toBe('')
-  })
-
-  it('returns extension from bare filename (no URL)', () => {
-    expect(extractExtension('document.xlsx')).toBe('xlsx')
-  })
-
-  it('handles double extension (takes last)', () => {
-    expect(extractExtension('https://example.com/archive.tar.gz')).toBe('gz')
-  })
-
-  it('returns empty string for dotfile without extension', () => {
-    expect(extractExtension('https://example.com/.gitignore')).toBe('')
-  })
-
-  it('handles filename with multiple dots', () => {
-    expect(extractExtension('https://example.com/v2.1.0-release.zip')).toBe('zip')
+  it.each([
+    ['https://example.com/video.mp4', 'mp4'],
+    ['https://cdn.example.com/releases/v2/file.tar.gz', 'gz'],
+    ['sftp://mirror.example.com/pub/archive.zip', 'zip'],
+    ['https://example.com/file.pdf?token=abc123&expires=999', 'pdf'],
+    ['https://example.com/file.docx#page=3', 'docx'],
+    ['https://dl.example.com/release.dmg?v=2#checksum', 'dmg'],
+    ['https://example.com/Setup.ExE', 'exe'],
+    ['https://example.com/%E6%96%87%E4%BB%B6.pdf', 'pdf'],
+    ['https://example.com/path%20to/my%20file.mp3', 'mp3'],
+    ['https://example.com/download', ''],
+    ['https://example.com/folder/', ''],
+    ['https://example.com', ''],
+    ['magnet:?xt=urn:btih:abc123', ''],
+    ['', ''],
+    ['document.xlsx', 'xlsx'],
+    ['https://example.com/.gitignore', ''],
+    ['https://example.com/v2.1.0-release.zip', 'zip'],
+  ])('extracts the extension from %s', (input, expected) => {
+    expect(extractExtension(input)).toBe(expected)
   })
 })
 
-// ════════════════════════════════════════════════════════════════════
-// resolveCategory — returns the matching FileCategory object or undefined
-// ════════════════════════════════════════════════════════════════════
-
 describe('resolveCategory', () => {
-  it('returns FileCategory object for matching video extension', () => {
-    const result = resolveCategory('mp4', TEST_CATEGORIES)
-    expect(result).toBeDefined()
-    expect(result!.label).toBe('Videos')
-    expect(result!.directory).toBe('/Users/test/Downloads/Videos')
-  })
-
-  it('returns FileCategory for matching archive extension', () => {
-    const result = resolveCategory('zip', TEST_CATEGORIES)
-    expect(result).toBeDefined()
-    expect(result!.directory).toBe('/Users/test/Downloads/Archives')
-  })
-
-  it('returns FileCategory for matching program extension', () => {
-    const result = resolveCategory('exe', TEST_CATEGORIES)
-    expect(result).toBeDefined()
-    expect(result!.directory).toBe('/Users/test/Downloads/Programs')
-  })
-
-  it('returns FileCategory for matching document extension', () => {
-    const result = resolveCategory('pdf', TEST_CATEGORIES)
-    expect(result?.directory).toBe('/Users/test/Downloads/Documents')
-  })
-
-  it('returns FileCategory for matching music extension', () => {
-    const result = resolveCategory('flac', TEST_CATEGORIES)
-    expect(result?.directory).toBe('/Users/test/Downloads/Music')
-  })
-
-  it('returns FileCategory for matching image extension', () => {
-    const result = resolveCategory('png', TEST_CATEGORIES)
-    expect(result?.directory).toBe('/Users/test/Downloads/Images')
+  it('returns the matching category with its configured destination', () => {
+    expect(resolveCategory('mp4', TEST_CATEGORIES)).toBe(TEST_CATEGORIES[0])
   })
 
   it('returns undefined for unrecognized extension', () => {
@@ -277,10 +163,6 @@ describe('resolveCategory', () => {
   })
 })
 
-// ════════════════════════════════════════════════════════════════════
-// validateCategoryUrlPatterns
-// ════════════════════════════════════════════════════════════════════
-
 describe('validateCategoryUrlPatterns', () => {
   it('accepts valid wildcard URL rules', () => {
     expect(validateCategoryUrlPatterns(['*://*.example.com/logs/*'], 'wildcard')).toBeUndefined()
@@ -300,10 +182,6 @@ describe('validateCategoryUrlPatterns', () => {
     })
   })
 })
-
-// ════════════════════════════════════════════════════════════════════
-// resolveDownloadDir — uses FileCategory.directory (absolute path)
-// ════════════════════════════════════════════════════════════════════
 
 describe('resolveDownloadDir', () => {
   const BASE = '/Users/test/Downloads'

@@ -9,10 +9,9 @@
  * Every field supports 'asc' and 'desc' direction.
  */
 import { describe, it, expect } from 'vitest'
-import type { Aria2Task, HistoryRecord } from '@shared/types'
+import type { Aria2Task } from '@shared/types'
 import {
   sortTasks,
-  sortRecords,
   applyManualOrder,
   createManualOrderSnapshot,
   PROGRESS_SORT_FIELDS,
@@ -54,19 +53,6 @@ function mockBtTask(gid: string, name: string, overrides: Partial<Aria2Task> = {
     bittorrent: { info: { name } },
     ...overrides,
   })
-}
-
-function mockRecord(gid: string, overrides: Partial<HistoryRecord> = {}): HistoryRecord {
-  return {
-    gid,
-    name: `file-${gid}`,
-    status: 'complete',
-    task_type: 'uri',
-    added_at: '2024-01-01T00:00:00Z',
-    completed_at: '2024-01-01T01:00:00Z',
-    total_length: 1000,
-    ...overrides,
-  }
 }
 
 // ── Helper: extract GID order after sort ─────────────────────────────
@@ -282,142 +268,19 @@ describe('sortTasks', () => {
   })
 })
 
-// ═════════════════════════════════════════════════════════════════════
-// sortRecords — used by Stopped tab
-// ═════════════════════════════════════════════════════════════════════
-
-describe('sortRecords', () => {
-  // ── added-at sorting ──────────────────────────────────────────────
-
-  describe('field: added-at', () => {
-    it('sorts DESC — most recently added first', () => {
-      const records = [
-        mockRecord('b', { added_at: '2024-01-01T00:00:00Z' }),
-        mockRecord('a', { added_at: '2024-01-03T00:00:00Z' }),
-        mockRecord('c', { added_at: '2024-01-02T00:00:00Z' }),
-      ]
-      sortRecords(records, 'added-at', 'desc')
-      expect(gids(records)).toEqual(['a', 'c', 'b'])
-    })
-
-    it('sorts ASC', () => {
-      const records = [
-        mockRecord('a', { added_at: '2024-01-03T00:00:00Z' }),
-        mockRecord('b', { added_at: '2024-01-01T00:00:00Z' }),
-      ]
-      sortRecords(records, 'added-at', 'asc')
-      expect(gids(records)).toEqual(['b', 'a'])
-    })
-
-    it('falls back to completed_at when added_at is null', () => {
-      const records = [
-        mockRecord('a', { added_at: undefined, completed_at: '2024-01-03T00:00:00Z' }),
-        mockRecord('b', { added_at: undefined, completed_at: '2024-01-01T00:00:00Z' }),
-      ]
-      sortRecords(records, 'added-at', 'desc')
-      expect(gids(records)).toEqual(['a', 'b'])
-    })
-  })
-
-  // ── completed-at sorting ──────────────────────────────────────────
-
-  describe('field: completed-at', () => {
-    it('sorts DESC — most recently completed first', () => {
-      const records = [
-        mockRecord('b', { completed_at: '2024-01-01T12:00:00Z' }),
-        mockRecord('a', { completed_at: '2024-01-03T12:00:00Z' }),
-        mockRecord('c', { completed_at: '2024-01-02T12:00:00Z' }),
-      ]
-      sortRecords(records, 'completed-at', 'desc')
-      expect(gids(records)).toEqual(['a', 'c', 'b'])
-    })
-
-    it('sorts ASC — earliest completed first', () => {
-      const records = [
-        mockRecord('a', { completed_at: '2024-01-03T12:00:00Z' }),
-        mockRecord('b', { completed_at: '2024-01-01T12:00:00Z' }),
-      ]
-      sortRecords(records, 'completed-at', 'asc')
-      expect(gids(records)).toEqual(['b', 'a'])
-    })
-
-    it('records without completed_at sort to the end in DESC', () => {
-      const records = [
-        mockRecord('a', { completed_at: undefined }),
-        mockRecord('b', { completed_at: '2024-01-01T00:00:00Z' }),
-      ]
-      sortRecords(records, 'completed-at', 'desc')
-      expect(gids(records)).toEqual(['b', 'a'])
-    })
-  })
-
-  // ── name sorting ──────────────────────────────────────────────────
-
-  describe('field: name', () => {
-    it('sorts A-Z (ASC)', () => {
-      const records = [
-        mockRecord('c', { name: 'zebra.iso' }),
-        mockRecord('a', { name: 'alpha.iso' }),
-        mockRecord('b', { name: 'mango.iso' }),
-      ]
-      sortRecords(records, 'name', 'asc')
-      expect(gids(records)).toEqual(['a', 'b', 'c'])
-    })
-
-    it('sorts Z-A (DESC)', () => {
-      const records = [mockRecord('a', { name: 'alpha.iso' }), mockRecord('c', { name: 'zebra.iso' })]
-      sortRecords(records, 'name', 'desc')
-      expect(gids(records)).toEqual(['c', 'a'])
-    })
-
-    it('is case-insensitive', () => {
-      const records = [mockRecord('b', { name: 'Banana' }), mockRecord('a', { name: 'apple' })]
-      sortRecords(records, 'name', 'asc')
-      expect(gids(records)).toEqual(['a', 'b'])
-    })
-  })
-
-  // ── size sorting ──────────────────────────────────────────────────
-
-  describe('field: size', () => {
-    it('sorts largest first (DESC)', () => {
-      const records = [
-        mockRecord('a', { total_length: 500 }),
-        mockRecord('b', { total_length: 2000 }),
-        mockRecord('c', { total_length: 100 }),
-      ]
-      sortRecords(records, 'size', 'desc')
-      expect(gids(records)).toEqual(['b', 'a', 'c'])
-    })
-
-    it('sorts smallest first (ASC)', () => {
-      const records = [mockRecord('b', { total_length: 2000 }), mockRecord('c', { total_length: 100 })]
-      sortRecords(records, 'size', 'asc')
-      expect(gids(records)).toEqual(['c', 'b'])
-    })
-
-    it('treats undefined total_length as 0', () => {
-      const records = [mockRecord('a', { total_length: undefined }), mockRecord('b', { total_length: 1000 })]
-      sortRecords(records, 'size', 'desc')
-      expect(gids(records)).toEqual(['b', 'a'])
-    })
-  })
-
-  // ── edge cases ────────────────────────────────────────────────────
-
-  describe('edge cases', () => {
-    it('handles empty array', () => {
-      const records: HistoryRecord[] = []
-      sortRecords(records, 'name', 'asc')
-      expect(records).toEqual([])
-    })
-
-    it('handles single-element array', () => {
-      const records = [mockRecord('a')]
-      sortRecords(records, 'name', 'asc')
-      expect(gids(records)).toEqual(['a'])
-    })
-  })
+it('sorts terminal tasks by completion time', () => {
+  const tasks = [mockTask('older'), mockTask('newer')]
+  sortTasks(
+    tasks,
+    'completed-at',
+    'desc',
+    new Map(),
+    new Map([
+      ['older', '2024-01-01'],
+      ['newer', '2024-01-02'],
+    ]),
+  )
+  expect(gids(tasks)).toEqual(['newer', 'older'])
 })
 
 describe('manual task order', () => {

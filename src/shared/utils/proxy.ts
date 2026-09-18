@@ -14,10 +14,6 @@ export function normalizeProxyMode(mode: unknown): EngineProxyMode {
   return ENGINE_PROXY_MODES.includes(mode as EngineProxyMode) ? (mode as EngineProxyMode) : 'direct'
 }
 
-export function isProxyModeEnabled(mode: EngineProxyMode): boolean {
-  return mode !== 'direct'
-}
-
 export function proxySwitchValueToMode(enabled: boolean): EngineProxyMode {
   return enabled ? 'manual' : 'direct'
 }

@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "Nedlastingshistorikkdatabasen ble opprettet av en nyere versjon av Motrix Next og er ikke kompatibel med denne versjonen.\n\nFor å fortsette må nedlastingshistorikken tilbakestilles.\nDe nedlastede filene dine vil IKKE bli påvirket.",
-  "database-conflict.cancel": "Avslutt",
-  "database-conflict.confirm": "Tilbakestill og start",
-  "database-conflict.title": "Databaseversjonskonflikt",
   "notification.bt-complete-body": "Deler: %{task_name}",
   "notification.bt-complete-title": "BT-nedlasting fullført",
   "notification.download-batch-start-body": "Laster ned: %{task_name} og %{count} andre oppgaver",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "Nedlasting startet",
   "notification.ed2k-complete-body": "Deler: %{task_name}",
   "notification.ed2k-complete-title": "ED2K-nedlasting fullført",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Venter på valg av innhold",
+  "notification.selection-body": "%{task_name}"
 }

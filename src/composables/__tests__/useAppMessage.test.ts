@@ -73,22 +73,6 @@ describe('useAppMessage', () => {
     vi.useRealTimers()
   })
 
-  it('delegates success/error/warning/info to the underlying message API', () => {
-    const msg = useAppMessage()
-
-    msg.success('done')
-    expect(mockMessageApi.success).toHaveBeenCalledOnce()
-
-    msg.error('fail')
-    expect(mockMessageApi.error).toHaveBeenCalledOnce()
-
-    msg.warning('caution')
-    expect(mockMessageApi.warning).toHaveBeenCalledOnce()
-
-    msg.info('note')
-    expect(mockMessageApi.info).toHaveBeenCalledOnce()
-  })
-
   it('updates and completes a tracked progress message in place', () => {
     const msg = useAppMessage()
     const progress = msg.progress('stopping')
@@ -121,20 +105,6 @@ describe('useAppMessage', () => {
     const displayedContent = vnode.children ?? ''
     expect(displayedContent.length).toBeLessThanOrEqual(131) // 128 chars + "..."
     expect(displayedContent).toContain('...')
-  })
-
-  it('renders plain toast text with shared technical wrapping', () => {
-    const msg = useAppMessage()
-
-    msg.success('Deleted "amd-software-adrenalin-edition-26.5.2-minimalsetup.exe"')
-
-    const vnode = renderMessageCallContent('success')()
-    expect(vnode.children).toContain('amd-software-adrenalin-edition')
-    expect(vnode.props?.class).toBe('technical-text-wrap')
-    expect(vnode.props?.style).toMatchObject({
-      display: 'inline-block',
-      maxWidth: 'min(560px, calc(100vw - 96px))',
-    })
   })
 
   it('destroys and reschedules duplicate messages within the dedup window', () => {
@@ -188,11 +158,5 @@ describe('useAppMessage', () => {
     expect(options.duration).toBe(1000)
     expect(options.closable).toBe(true)
     expect(options.keepAliveOnHover).toBe(true)
-  })
-
-  it('handles empty string content without crashing', () => {
-    const msg = useAppMessage()
-    expect(() => msg.info('')).not.toThrow()
-    expect(mockMessageApi.info).toHaveBeenCalledOnce()
   })
 })

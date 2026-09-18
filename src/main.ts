@@ -9,6 +9,7 @@ import { usePreferenceStore } from './stores/preference'
 import { useTaskStore } from './stores/task'
 import { useAppStore } from './stores/app'
 import { useHistoryStore } from './stores/history'
+import { useDatabaseStore } from './stores/database'
 import { useEngineStore } from './stores/engine'
 import aria2Api from './api/aria2'
 import { DEFAULT_TRACKER_SOURCE, ENGINE_RPC_PORT, PROXY_SCOPES } from '@shared/constants'
@@ -21,7 +22,6 @@ import { resolveAppProxyUrl } from '@shared/utils/proxy'
 import { checkSyncDue } from '@shared/utils/syncSchedule'
 import type { AppConfig, TauriUpdate } from '@shared/types'
 import App from './App.vue'
-import 'virtual:uno.css'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/transitions.css'
@@ -274,6 +274,7 @@ if (import.meta.env.PROD) {
           'rpc-listen-port': String(port),
         },
       })
+      if (useDatabaseStore().phase === 'resetting') return false
       const snapshot = await engineStore.ensureRunning('startup')
       logger.info('Engine', `supervisor completed startup on port ${port}`)
       return snapshot.phase === 'running'
@@ -349,15 +350,15 @@ if (import.meta.env.PROD) {
     await loadLocale(resolvedLocale)
     setI18nLocale(i18n, resolvedLocale)
 
-    // Flush deferred migration toasts now that i18n locale is active.
-    // loadPreference() buffers these signals to avoid showing English toasts.
-    preferenceStore.flushMigrationSignals()
-
     // Mount only after preference + locale hydration so root-level theme,
     // color-scheme, locale, and layout watchers see stable persisted values
     // on their first run. The native window is still hidden until
     // MainLayout.onMounted explicitly shows it.
     app.mount('#app')
+    // The UI remains usable if database inspection fails.
+    const database = useDatabaseStore()
+    await database.init().catch(() => undefined)
+    if (database.phase === 'resetting') return
     await engineStore.initialize()
 
     const config = preferenceStore.config
@@ -419,12 +420,7 @@ if (import.meta.env.PROD) {
 
     // Initialize download history database, then schedule lightweight cleanup.
     historyStore
-      .init({
-        onCorrupt: () => logger.warn('HistoryDB', 'Database corrupted, rebuilding…'),
-        onError: (e) => logger.warn('HistoryDB', `Load failed, rebuilding… ${e}`),
-        onRebuilt: () => logger.info('HistoryDB', 'Database rebuilt successfully'),
-        onRebuildFailed: (e) => logger.error('HistoryDB', `Rebuild failed: ${e}`),
-      })
+      .init()
       .then(() => {
         const runCleanup = async () => {
           try {
@@ -439,7 +435,7 @@ if (import.meta.env.PROD) {
               removeTaskRecord: aria2Api.removeTaskRecord,
               extractFilePaths: extractHistoryFilePaths,
             })
-            await taskStore.refreshTaskCounts()
+            await taskStore.fetchList()
           } catch (e) {
             logger.debug('HistoryMaintenance', e)
           }

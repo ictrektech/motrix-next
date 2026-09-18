@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "Базу даних історії завантажень було створено новішою версією Motrix Next, яка несумісна з поточною.\n\nДля продовження необхідно скинути історію завантажень.\nЗавантажені файли НЕ будуть порушені.",
-  "database-conflict.cancel": "Вихід",
-  "database-conflict.confirm": "Скинути та запустити",
-  "database-conflict.title": "Конфлікт версій бази даних",
   "notification.bt-complete-body": "Роздача: %{task_name}",
   "notification.bt-complete-title": "BT-завантаження завершено",
   "notification.download-batch-start-body": "Завантаження: %{task_name} та ще %{count} завдань",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "Завантаження розпочато",
   "notification.ed2k-complete-body": "Роздача: %{task_name}",
   "notification.ed2k-complete-title": "ED2K-завантаження завершено",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Очікування вибору вмісту",
+  "notification.selection-body": "%{task_name}"
 }

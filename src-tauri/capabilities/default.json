@@ -27,9 +27,15 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$APPDATA/**" },
-        { "path": "$APPLOG/**" },
-        { "path": "$TEMP/**" }
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPLOG/**"
+        },
+        {
+          "path": "$TEMP/**"
+        }
       ]
     },
     "clipboard-manager:allow-read-text",
@@ -40,8 +46,6 @@
     "deep-link:allow-unregister",
     "deep-link:allow-is-registered",
     "locale:default",
-    "log:default",
-    "sql:default",
-    "sql:allow-execute"
+    "log:default"
   ]
 }

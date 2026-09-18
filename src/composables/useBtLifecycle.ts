@@ -46,14 +46,6 @@ export function isAwaitingBtFileSelection(task: Aria2Task): boolean {
   return getBtLifecycleState(task) === 'selection'
 }
 
-export function isBtSeeding(task: Aria2Task): boolean {
-  return getBtLifecycleState(task) === 'seeding'
-}
-
-export function isBtSeedingPaused(task: Aria2Task): boolean {
-  return getBtLifecycleState(task) === 'paused-seeding'
-}
-
 export function formatSharingDuration(
   seconds: number,
   units: { day: string; hour: string; minute: string; second: string },

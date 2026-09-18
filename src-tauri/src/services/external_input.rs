@@ -13,6 +13,8 @@ pub struct ExternalRequestHeader {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalDownloadInput {
+    pub request_id: Option<String>,
+    pub filename_source: Option<crate::services::downloads::contracts::FilenameSource>,
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub final_url: Option<String>,
@@ -218,6 +220,8 @@ mod tests {
                 .lock()
                 .expect("pending external input state poisoned");
             inner.queue.push(ExternalDownloadInput {
+                request_id: None,
+                filename_source: None,
                 url: "https://example.com/file.zip".to_string(),
                 final_url: Some("https://cdn.example.com/file.zip".to_string()),
                 referer: Some("https://example.com/page".to_string()),
@@ -263,6 +267,8 @@ mod tests {
                 .lock()
                 .expect("pending external input state poisoned");
             inner.queue.push(ExternalDownloadInput {
+                request_id: None,
+                filename_source: None,
                 url: "https://example.com/file.zip".to_string(),
                 final_url: None,
                 referer: None,

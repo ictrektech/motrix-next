@@ -35,8 +35,6 @@ function createApi() {
     getOption: vi.fn().mockResolvedValue({ dir: '/downloads', continue: 'true' }),
     removeTask: vi.fn().mockResolvedValue('OK'),
     removeTaskRecord: vi.fn().mockResolvedValue('OK'),
-    fetchList: vi.fn().mockResolvedValue(undefined),
-    saveSession: vi.fn().mockResolvedValue('OK'),
   }
 }
 

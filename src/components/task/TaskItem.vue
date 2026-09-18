@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview Individual task row in the task list with progress and controls. */
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TASK_STATUS } from '@shared/constants'
 import { NProgress, NIcon } from 'naive-ui'
@@ -16,11 +16,13 @@ import {
   TrashOutline,
   RadioOutline,
   TimeOutline,
+  ListOutline,
 } from '@vicons/ionicons5'
 import { useTaskCardModel } from '@/composables/useTaskCardModel'
 import { useTaskFileMissing } from '@/composables/useTaskFileMissing'
 import TaskDragHandle from './TaskDragHandle.vue'
 import TaskItemActions from './TaskItemActions.vue'
+import TaskTextTransition from './TaskTextTransition.vue'
 import type { Aria2Task } from '@shared/types'
 
 const props = withDefaults(defineProps<{ task: Aria2Task; actionPending?: boolean }>(), { actionPending: false })
@@ -30,6 +32,7 @@ const emit = defineEmits<{
   retry: [task: Aria2Task]
   redownload: [task: Aria2Task]
   'finish-sharing': [task: Aria2Task]
+  'finish-media': [task: Aria2Task]
   delete: [task: Aria2Task]
   'delete-record': [task: Aria2Task]
   'copy-link': [task: Aria2Task]
@@ -48,6 +51,7 @@ const {
   statusBadge,
   taskStatus,
   isActive,
+  indeterminate,
   percent,
   completedSize,
   totalSize,
@@ -99,6 +103,13 @@ const statusBadgeIcon = computed(() => {
       return TrashOutline
     case TASK_STATUS.WAITING:
       return TimeOutline
+    case 'awaiting-selection':
+    case 'bt-file-selection':
+      return ListOutline
+    case 'probing':
+    case 'recording':
+    case 'downloading':
+    case 'finalizing':
     case 'bt-metadata-fetching':
       return RadioOutline
     default:
@@ -107,20 +118,6 @@ const statusBadgeIcon = computed(() => {
 })
 
 const { fileMissing } = useTaskFileMissing(taskRef)
-
-// ── M3 sharing state entrance animation ───────────────────────────
-// CSS transitions fail here because the store's polling cycle replaces
-// task objects entirely — even though Vue reuses the DOM element (same
-// gid key), NProgress internally rebuilds its fill node, losing the
-// transition starting point. @keyframes animations do not depend on
-// property value continuity — they always play from→to.
-const sharingEnter = ref(false)
-
-watch(isSharing, (now, was) => {
-  if (now && !was) {
-    sharingEnter.value = true
-  }
-})
 </script>
 
 <template>
@@ -128,9 +125,7 @@ watch(isSharing, (now, was) => {
     class="task-item"
     :class="{
       'is-sharing': isSharing,
-      'sharing-enter': sharingEnter,
     }"
-    @animationend="sharingEnter = false"
   >
     <TaskDragHandle class="task-drag-rail" />
     <div class="task-body">
@@ -138,12 +133,9 @@ watch(isSharing, (now, was) => {
         <MTooltip placement="bottom-start">
           <template #trigger>
             <div class="task-name">
-              <!-- Crossfade: old name fades out, then new name fades in.
-                   :key ensures transition only fires when the text actually changes.
-                   Polling-safe: computed returns the same string each cycle → no key change. -->
-              <Transition name="name-crossfade" mode="out-in">
-                <span :key="taskFullName" class="technical-text-wrap">{{ taskFullName }}</span>
-              </Transition>
+              <TaskTextTransition :value="taskFullName">
+                <span class="technical-text-wrap">{{ taskFullName }}</span>
+              </TaskTextTransition>
             </div>
           </template>
           {{ taskFullName }}
@@ -157,6 +149,7 @@ watch(isSharing, (now, was) => {
           @retry="emit('retry', task)"
           @redownload="emit('redownload', task)"
           @finish-sharing="emit('finish-sharing', task)"
+          @finish-media="emit('finish-media', task)"
           @delete="emit('delete', task)"
           @delete-record="emit('delete-record', task)"
           @copy-link="emit('copy-link', task)"
@@ -169,10 +162,12 @@ watch(isSharing, (now, was) => {
       <div class="task-status-slot" :class="{ 'task-status-slot--visible': hasStatusLine }">
         <div class="task-status-slot__inner">
           <div class="task-tags" :class="{ 'task-tags--visible': hasStatusLine }">
-            <span v-show="statusBadge" class="status-tag" :style="statusBadgeStyle">
-              <NIcon :size="13"><component :is="statusBadgeIcon" /></NIcon>
-              {{ statusBadge?.label }}
-            </span>
+            <TaskTextTransition v-show="statusBadge" :value="statusBadge?.key ?? ''">
+              <span v-if="statusBadge" class="status-tag" :style="statusBadgeStyle">
+                <NIcon :size="13"><component :is="statusBadgeIcon" /></NIcon>
+                {{ statusBadge.label }}
+              </span>
+            </TaskTextTransition>
             <span v-show="fileMissing" class="file-missing-tag">
               <NIcon :size="13"><AlertCircleOutline /></NIcon>
               {{ t('task.file-missing') || 'File missing' }}
@@ -182,6 +177,7 @@ watch(isSharing, (now, was) => {
       </div>
       <div class="task-progress">
         <NProgress
+          v-if="!indeterminate"
           type="line"
           :percentage="percent"
           :color="progressColor"
@@ -193,7 +189,7 @@ watch(isSharing, (now, was) => {
         />
         <div class="task-progress-info">
           <div class="progress-left" :class="{ 'info-hidden': !hasSizeInfo }">
-            <span>{{ percent }}% · {{ completedSize }} / {{ totalSize }}</span>
+            <span>{{ indeterminate ? '' : `${percent}% · ` }}{{ completedSize }} / {{ totalSize }}</span>
           </div>
           <div class="progress-right" :class="{ 'info-hidden': !isActive }">
             <span class="speed-text" :class="{ 'info-hidden': remaining <= 0 }">
@@ -248,6 +244,7 @@ watch(isSharing, (now, was) => {
   background: linear-gradient(90deg, color-mix(in srgb, var(--m3-success) 6%, transparent) 0%, transparent 40%);
   opacity: 0;
   pointer-events: none;
+  transition: opacity var(--task-motion-state) var(--task-motion-ease);
 }
 /* ── Seeding state (static) ────────────────────────────────────────── */
 .task-item.is-sharing {
@@ -255,31 +252,6 @@ watch(isSharing, (now, was) => {
 }
 .task-item.is-sharing::before {
   opacity: 1;
-}
-/* ── Seeding entrance animation (triggered by Vue watch) ───────────── */
-/* @keyframes always plays from→to regardless of prior DOM state,       */
-/* unlike CSS transitions which break when the element is re-rendered.  */
-@keyframes sharing-border-enter {
-  from {
-    border-left-color: var(--m3-outline-variant);
-  }
-  to {
-    border-left-color: var(--m3-success);
-  }
-}
-@keyframes sharing-overlay-enter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.task-item.sharing-enter {
-  animation: sharing-border-enter 1s cubic-bezier(0.05, 0.7, 0.1, 1) forwards;
-}
-.task-item.sharing-enter::before {
-  animation: sharing-overlay-enter 1.2s cubic-bezier(0.05, 0.7, 0.1, 1) forwards;
 }
 .task-item:hover .task-drag-rail {
   opacity: 0.64;
@@ -312,7 +284,10 @@ watch(isSharing, (now, was) => {
   min-width: 0;
   max-width: 100%;
 }
-.task-name > span {
+.task-name > .task-text-transition {
+  display: grid;
+}
+.task-name :deep(.task-text-transition-content) {
   font-size: 14px;
   line-height: 26px;
   display: -webkit-box;
@@ -320,25 +295,6 @@ watch(isSharing, (now, was) => {
   text-overflow: ellipsis;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-}
-/* ── Filename resolution crossfade (Vue <Transition mode="out-in">) ── */
-/* Old text fades out → new text fades in. No flash because Vue applies  */
-/* enter-from (opacity:0) BEFORE inserting the new element.              */
-/* Polling-safe: :key is the string value — same string = no transition. */
-.name-crossfade-enter-active {
-  transition:
-    opacity 0.25s cubic-bezier(0.05, 0.7, 0.1, 1),
-    transform 0.25s cubic-bezier(0.05, 0.7, 0.1, 1);
-}
-.name-crossfade-leave-active {
-  transition: opacity 0.15s cubic-bezier(0.2, 0, 0, 1);
-}
-.name-crossfade-enter-from {
-  opacity: 0;
-  transform: translateY(3px);
-}
-.name-crossfade-leave-to {
-  opacity: 0;
 }
 .file-missing-tag {
   display: inline-flex;
@@ -363,7 +319,9 @@ watch(isSharing, (now, was) => {
 }
 /* M3 progress-bar transition between semantic status colors. */
 .task-progress :deep(.n-progress-graph-line-fill) {
-  transition: background-color 0.5s cubic-bezier(0.2, 0, 0, 1);
+  transition:
+    max-width var(--task-motion-progress) var(--task-motion-ease),
+    background-color var(--task-motion-state) var(--task-motion-ease);
 }
 .task-progress {
   margin-top: 10px;
@@ -383,14 +341,14 @@ watch(isSharing, (now, was) => {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
-  transition: opacity 0.4s cubic-bezier(0.2, 0, 0, 1);
+  transition: opacity var(--task-motion-state) var(--task-motion-ease);
 }
 .progress-right {
   display: flex;
   gap: 8px;
   text-align: right;
   align-items: center;
-  transition: opacity 0.4s cubic-bezier(0.2, 0, 0, 1);
+  transition: opacity var(--task-motion-state) var(--task-motion-ease);
 }
 .speed-text {
   display: inline-flex;
@@ -428,6 +386,8 @@ watch(isSharing, (now, was) => {
   align-items: center;
   gap: 8px;
   min-height: 18px;
+  font-size: 13px;
+  line-height: 18px;
   opacity: 0;
   transform: translateY(-3px);
   transition:
@@ -440,11 +400,15 @@ watch(isSharing, (now, was) => {
   transform: translateY(0);
   pointer-events: auto;
 }
+.task-tags > .task-text-transition {
+  min-height: 18px;
+}
 .status-tag {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 13px;
+  line-height: 18px;
   opacity: 0.9;
   vertical-align: middle;
 }

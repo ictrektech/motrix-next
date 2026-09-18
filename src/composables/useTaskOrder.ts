@@ -86,13 +86,3 @@ export function buildSortableAddedAtMap(
 
   return result
 }
-
-/** Remove a specific entry. Used when a task is permanently deleted. */
-export function removeAddedAt(gid: string): void {
-  addedAtMap.delete(gid)
-}
-
-/** Clear all entries. Used in tests. */
-export function _resetForTesting(): void {
-  addedAtMap.clear()
-}

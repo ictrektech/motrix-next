@@ -8,7 +8,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   remove: vi.fn().mockResolvedValue(undefined),
 }))
 
-const { isMetadataTask, shouldRunStaleCleanup, historyRecordToTask, mergeHistoryIntoTasks, extractHistoryFilePaths } =
+const { isMetadataTask, historyRecordToTask, mergeHistoryIntoTasks, extractHistoryFilePaths } =
   await import('../useTaskLifecycle')
 
 // ── Test data factories ──────────────────────────────────────────────
@@ -59,26 +59,6 @@ describe('isMetadataTask', () => {
   })
 })
 
-// ── shouldRunStaleCleanup ────────────────────────────────────────────
-
-describe('shouldRunStaleCleanup', () => {
-  it('returns true when autoDeleteStaleRecords is true', () => {
-    expect(shouldRunStaleCleanup({ autoDeleteStaleRecords: true })).toBe(true)
-  })
-
-  it('returns false when autoDeleteStaleRecords is false', () => {
-    expect(shouldRunStaleCleanup({ autoDeleteStaleRecords: false })).toBe(false)
-  })
-
-  it('returns false when config is undefined', () => {
-    expect(shouldRunStaleCleanup(undefined)).toBe(false)
-  })
-
-  it('returns false when autoDeleteStaleRecords is missing', () => {
-    expect(shouldRunStaleCleanup({})).toBe(false)
-  })
-})
-
 // ── historyRecordToTask ─────────────────────────────────────────────
 
 function makeRecord(overrides: Partial<HistoryRecord> = {}): HistoryRecord {
@@ -96,6 +76,25 @@ function makeRecord(overrides: Partial<HistoryRecord> = {}): HistoryRecord {
 }
 
 describe('historyRecordToTask', () => {
+  it('restores actual progress and errors without filling skipped files', () => {
+    const task = historyRecordToTask(
+      makeRecord({
+        status: 'error',
+        meta: JSON.stringify({
+          completedLength: '50',
+          errorCode: '3',
+          errorMessage: 'Not found',
+          files: [
+            { index: '1', path: '/dl/selected', length: '100', completedLength: '50', selected: 'true', uris: [] },
+            { index: '2', path: '/dl/skipped', length: '1000', completedLength: '0', selected: 'false', uris: [] },
+          ],
+        }),
+      }),
+    )
+    expect(task.completedLength).toBe('50')
+    expect(task.errorMessage).toBe('Not found')
+    expect(task.files.map((file) => file.completedLength)).toEqual(['50', '0'])
+  })
   it('maps gid, status, dir, totalLength from record', () => {
     const task = historyRecordToTask(makeRecord())
     expect(task.gid).toBe('hist-001')

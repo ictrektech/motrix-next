@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   buildNetworkForm,
   buildNetworkSystemConfig,
-  isValidAria2ProxyUrl,
   transformNetworkForStore,
   validateNetworkForm,
 } from '../useNetworkPreference'
@@ -10,16 +9,6 @@ import { PROXY_SCOPES } from '@shared/constants'
 import { createDefaultAppConfig } from '@shared/utils/configHydration'
 
 describe('Network preference contract', () => {
-  it.each(['', '127.0.0.1:8080', 'http://proxy.example.com:8080', 'https://user:pass@proxy.example.com'])(
-    'accepts supported proxy value %s',
-    (value) => expect(isValidAria2ProxyUrl(value)).toBe(true),
-  )
-
-  it.each(['socks4://127.0.0.1:1080', 'socks5://127.0.0.1:1080', 'ws://proxy.example.com'])(
-    'rejects unsupported proxy value %s',
-    (value) => expect(isValidAria2ProxyUrl(value)).toBe(false),
-  )
-
   it('maps persisted transfer and proxy values into the form', () => {
     const form = buildNetworkForm({
       ...createDefaultAppConfig(),

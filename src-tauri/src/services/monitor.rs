@@ -3,7 +3,7 @@
 //! Aria2 Next WebSocket events drive terminal task processing. A lightweight
 //! poll remains for aggregate active state and ED2K sharing transitions.
 //!
-//! Persists history records to the Rust-side `HistoryDb` directly,
+//! Persists history records to the Rust-side `Database` directly,
 //! ensuring task completion data survives even when the WebView is
 //! destroyed in lightweight mode (issue #194).
 //!
@@ -15,8 +15,8 @@
 
 use super::notification::send_task_notification;
 use crate::aria2::types::Aria2Task;
+use crate::database::DatabaseState;
 use crate::error::AppError;
-use crate::history::HistoryDbState;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -58,6 +58,8 @@ impl SharingKind {
 /// multi-file deletion and folder-opening after history round-trip.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TaskEventFile {
+    pub index: String,
+    pub completed_length: String,
     pub path: String,
     pub length: String,
     pub selected: String,
@@ -68,6 +70,7 @@ pub struct TaskEventFile {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskEvent {
+    pub media: Option<crate::aria2::types::Aria2Media>,
     pub gid: String,
     pub name: String,
     pub status: String,
@@ -132,6 +135,8 @@ impl TaskEvent {
             .files
             .iter()
             .map(|f| TaskEventFile {
+                index: f.index.clone(),
+                completed_length: f.completed_length.clone(),
                 path: f.path.clone(),
                 length: f.length.clone(),
                 selected: f.selected.clone(),
@@ -146,6 +151,7 @@ impl TaskEvent {
             .unwrap_or_default();
 
         Self {
+            media: task.media.clone(),
             gid: task.gid.clone(),
             name,
             status: task.status.clone(),
@@ -183,9 +189,9 @@ impl TaskEvent {
                 let path = &first.path;
                 let sep = path.rfind('/').or_else(|| path.rfind('\\'));
                 if let Some(idx) = sep {
-                    return crate::commands::net::decode_filename_encoding(&path[idx + 1..]);
+                    return path[idx + 1..].to_string();
                 }
-                return crate::commands::net::decode_filename_encoding(path);
+                return path.to_string();
             }
         }
         "Unknown".to_string()
@@ -215,10 +221,12 @@ fn is_metadata_task(task: &Aria2Task) -> bool {
 /// - `files`    → multi-file folder detection in `resolveOpenTarget()` / `deleteTaskFiles()`
 /// - `announceList` → magnet link reconstruction for restart
 ///
-/// Returns `None` for non-BT tasks with a single file and no mirrors
-/// (matches the frontend's compact-omission optimization).
-fn build_history_meta_json(event: &TaskEvent) -> Option<String> {
+/// Preserve terminal progress for every protocol and file count.
+fn build_history_meta_json(event: &TaskEvent) -> String {
     let mut meta = serde_json::Map::new();
+    if let Some(media) = &event.media {
+        meta.insert("media".into(), serde_json::json!(media));
+    }
 
     if let Some(ref hash) = event.info_hash {
         meta.insert(
@@ -266,15 +274,24 @@ fn build_history_meta_json(event: &TaskEvent) -> Option<String> {
         meta.insert("announceList".to_string(), serde_json::Value::Array(al));
     }
 
-    // Snapshot trigger: multi-file OR any file with multiple mirror URIs.
-    let has_multiple_files = event.files.len() > 1;
-    let has_mirrors = event.files.iter().any(|f| f.uris.len() > 1);
-    if has_multiple_files || has_mirrors {
+    meta.insert(
+        "completedLength".into(),
+        event.completed_length.clone().into(),
+    );
+    if let Some(value) = &event.error_code {
+        meta.insert("errorCode".into(), value.clone().into());
+    }
+    if let Some(value) = &event.error_message {
+        meta.insert("errorMessage".into(), value.clone().into());
+    }
+    if !event.files.is_empty() {
         let files: Vec<serde_json::Value> = event
             .files
             .iter()
             .map(|f| {
                 serde_json::json!({
+                    "index": f.index,
+                    "completedLength": f.completed_length,
                     "path": f.path,
                     "length": f.length,
                     "selected": f.selected,
@@ -285,11 +302,7 @@ fn build_history_meta_json(event: &TaskEvent) -> Option<String> {
         meta.insert("files".to_string(), serde_json::Value::Array(files));
     }
 
-    if meta.is_empty() {
-        None
-    } else {
-        Some(serde_json::to_string(&meta).unwrap_or_default())
-    }
+    serde_json::Value::Object(meta).to_string()
 }
 
 /// Converts a [`TaskEvent`] into a [`HistoryRecord`] for Rust-side DB persistence.
@@ -301,7 +314,7 @@ fn build_history_meta_json(event: &TaskEvent) -> Option<String> {
 ///
 /// The resulting record uses `ON CONFLICT(gid) DO UPDATE` when inserted.
 #[cfg(test)]
-fn build_history_record(event: &TaskEvent, event_name: &str) -> crate::history::HistoryRecord {
+fn build_history_record(event: &TaskEvent, event_name: &str) -> crate::database::HistoryRecord {
     build_history_record_with_added_at(event, event_name, None)
 }
 
@@ -309,14 +322,16 @@ pub fn build_history_record_with_added_at(
     event: &TaskEvent,
     event_name: &str,
     added_at: Option<String>,
-) -> crate::history::HistoryRecord {
+) -> crate::database::HistoryRecord {
     let status = match event_name {
         events::TASK_COMPLETE | events::P2P_DOWNLOAD_COMPLETE => "complete",
         events::TASK_ERROR => "error",
         _ => "unknown",
     };
 
-    let task_type = if event.is_bt {
+    let task_type = if event.media.is_some() {
+        Some("media".to_string())
+    } else if event.is_bt {
         Some("bt".to_string())
     } else if event.is_ed2k {
         Some("ed2k".to_string())
@@ -330,7 +345,7 @@ pub fn build_history_record_with_added_at(
 
     // This ensures historyRecordToTask() can reconstruct multi-file BT tasks
     // for deletion, open-folder, and deduplication.
-    let meta = build_history_meta_json(event);
+    let meta = Some(build_history_meta_json(event));
 
     let uri = event
         .files
@@ -339,7 +354,7 @@ pub fn build_history_record_with_added_at(
         .filter(|uri| !uri.is_empty())
         .cloned();
 
-    crate::history::HistoryRecord {
+    crate::database::HistoryRecord {
         id: None,
         gid: event.gid.clone(),
         name: event.name.clone(),
@@ -360,14 +375,43 @@ async fn persist_lifecycle_event(
     event_name: &str,
     payload: &TaskEvent,
 ) -> Result<(), AppError> {
-    let Some(db_state) = app.try_state::<HistoryDbState>() else {
+    let Some(db_state) = app.try_state::<DatabaseState>() else {
         return Err(AppError::Store(
             "History database is unavailable during lifecycle processing".into(),
         ));
     };
     let db = db_state.0.clone();
+    if !db.is_ready().await {
+        return Ok(());
+    }
     let existing_added_at = db.get_task_birth(&payload.gid).await?;
-    let record = build_history_record_with_added_at(payload, event_name, existing_added_at);
+    let mut record = build_history_record_with_added_at(payload, event_name, existing_added_at);
+    if payload.media.is_some() {
+        if let Some(aria2) = app.try_state::<crate::services::tasks::TaskServiceState>() {
+            match aria2.0.get_option(&payload.gid).await {
+                Ok(options) => {
+                    let media_options: serde_json::Map<String, serde_json::Value> = options
+                        .as_object()
+                        .into_iter()
+                        .flatten()
+                        .filter(|(key, _)| {
+                            super::media::contracts::HISTORY_OPTIONS.contains(&key.as_str())
+                        })
+                        .map(|(key, value)| (key.clone(), value.clone()))
+                        .collect();
+                    let mut meta: serde_json::Value =
+                        serde_json::from_str(record.meta.as_deref().unwrap_or("{}"))
+                            .map_err(|error| AppError::Aria2(error.to_string()))?;
+                    meta["mediaOptions"] = media_options.into();
+                    record.meta = Some(meta.to_string());
+                }
+                Err(error) => log::warn!(
+                    "media: options unavailable for history gid={} error={error}",
+                    payload.gid
+                ),
+            }
+        }
+    }
 
     if let Some(info_hash) = payload.info_hash.as_deref() {
         db.remove_by_info_hash(info_hash, Some(&payload.gid))
@@ -385,12 +429,17 @@ pub async fn process_lifecycle_task(
     task: &Aria2Task,
     notify: bool,
 ) -> Result<(), AppError> {
-    if is_metadata_task(task) {
+    if super::media::owns(app, &task.gid).await || is_metadata_task(task) {
         return Ok(());
     }
 
     let payload = TaskEvent::from_aria2(task);
-    persist_lifecycle_event(app, event_name, &payload).await?;
+    if let Err(error) = persist_lifecycle_event(app, event_name, &payload).await {
+        log::error!(
+            "task_lifecycle:persist-failed gid={} error={error}",
+            payload.gid
+        );
+    }
 
     if !notify {
         return Ok(());
@@ -419,23 +468,26 @@ pub async fn process_lifecycle_task(
         webview_alive;
         "task_lifecycle_event"
     );
-    send_task_notification(app, event_name, &payload, &runtime_config);
     if let Err(error) = app.emit(event_name, &payload) {
         log::warn!("task_lifecycle: failed to emit {event_name}: {error}");
     }
+    send_task_notification(app, event_name, &payload, &runtime_config).await;
     Ok(())
 }
 
 pub async fn reconcile_stopped_tasks(
     app: &tauri::AppHandle,
-    aria2: &crate::aria2::client::Aria2Client,
+    aria2: &crate::services::tasks::TaskService,
 ) -> Result<usize, AppError> {
-    let Some(db_state) = app.try_state::<HistoryDbState>() else {
+    let Some(db_state) = app.try_state::<DatabaseState>() else {
         return Err(AppError::Store(
             "History database is unavailable during lifecycle reconciliation".into(),
         ));
     };
     let db = db_state.0.clone();
+    if !db.is_ready().await {
+        return Ok(0);
+    }
     let mut reconciled = 0;
 
     for task in aria2.tell_all_stopped().await? {
@@ -570,7 +622,7 @@ impl TaskMonitorHandle {
 /// Returns a handle that can signal the monitor to stop.
 pub fn spawn_task_monitor(
     app: tauri::AppHandle,
-    aria2: Arc<crate::aria2::client::Aria2Client>,
+    aria2: Arc<crate::services::tasks::TaskService>,
 ) -> TaskMonitorHandle {
     let (stop_tx, stop_rx) = watch::channel(false);
 
@@ -583,7 +635,7 @@ pub fn spawn_task_monitor(
 
 async fn monitor_loop(
     app: tauri::AppHandle,
-    aria2: Arc<crate::aria2::client::Aria2Client>,
+    aria2: Arc<crate::services::tasks::TaskService>,
     mut stop_rx: watch::Receiver<bool>,
 ) {
     let mut sharing_notifier = Ed2kSharingNotifier::new();
@@ -900,11 +952,11 @@ mod tests {
     }
 
     #[test]
-    fn task_event_decodes_filename_from_file_path() {
+    fn task_event_preserves_literal_percent_sequences_from_file_path() {
         let mut task = make_task("g1", "complete");
         task.files[0].path = "/tmp/r%C3%A9sum%C3%A9.txt".to_string();
 
-        assert_eq!(TaskEvent::from_aria2(&task).name, "résumé.txt");
+        assert_eq!(TaskEvent::from_aria2(&task).name, "r%C3%A9sum%C3%A9.txt");
     }
 
     #[test]
@@ -1137,23 +1189,24 @@ mod tests {
     }
 
     #[test]
-    fn single_file_uri_task_has_no_meta() {
-        // Non-BT single-file tasks should have meta = None
-        // (matches frontend's compact-omission optimization)
-        let task = make_task("g1", "complete");
+    fn terminal_snapshot_preserves_partial_progress_and_error() {
+        let mut task = make_task("g1", "error");
+        task.completed_length = "512".into();
+        task.files[0].completed_length = "512".into();
+        task.error_code = Some("3".into());
+        task.error_message = Some("Resource not found".into());
         let event = TaskEvent::from_aria2(&task);
         let record = build_history_record(&event, events::TASK_COMPLETE);
 
-        assert!(
-            record.meta.is_none(),
-            "single-file URI tasks should omit meta"
-        );
+        let meta: serde_json::Value = serde_json::from_str(record.meta.as_ref().unwrap()).unwrap();
+        assert_eq!(meta["completedLength"], "512");
+        assert_eq!(meta["files"][0]["completedLength"], "512");
+        assert_eq!(meta["errorCode"], "3");
+        assert_eq!(meta["errorMessage"], "Resource not found");
     }
 
     #[test]
-    fn single_file_bt_meta_omits_files_but_has_info_hash() {
-        // Single-file BT task: meta should have infoHash but NOT files
-        // (files snapshot only needed for multi-file or multi-mirror)
+    fn single_file_bt_meta_preserves_files_and_info_hash() {
         let task = make_bt_task("g1", "active", true);
         let event = TaskEvent::from_aria2(&task);
         let record = build_history_record(&event, events::P2P_DOWNLOAD_COMPLETE);
@@ -1161,8 +1214,8 @@ mod tests {
         let meta: serde_json::Value = serde_json::from_str(record.meta.as_ref().unwrap()).unwrap();
         assert!(meta.get("infoHash").is_some());
         assert!(
-            meta.get("files").is_none(),
-            "single-file BT should not include files snapshot"
+            meta.get("files").is_some(),
+            "single-file BT should preserve its file snapshot"
         );
     }
 

@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "База данных истории загрузок была создана более новой версией Motrix Next и несовместима с текущей версией.\n\nДля продолжения необходимо сбросить историю загрузок.\nЗагруженные файлы НЕ будут затронуты.",
-  "database-conflict.cancel": "Выход",
-  "database-conflict.confirm": "Сбросить и запустить",
-  "database-conflict.title": "Конфликт версий базы данных",
   "notification.bt-complete-body": "Раздача: %{task_name}",
   "notification.bt-complete-title": "BT-загрузка завершена",
   "notification.download-batch-start-body": "Загрузка: %{task_name} и ещё %{count} задач",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "Загрузка начата",
   "notification.ed2k-complete-body": "Раздача: %{task_name}",
   "notification.ed2k-complete-title": "ED2K-загрузка завершена",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Ожидание выбора содержимого",
+  "notification.selection-body": "%{task_name}"
 }

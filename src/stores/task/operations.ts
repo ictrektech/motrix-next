@@ -20,13 +20,13 @@ interface TaskOperationsDeps {
   hideTaskDetail: () => void
   fetchList: () => Promise<void>
   setTaskRemoving?: (gid: string, removing: boolean) => void
+  requestMediaSelection?: (task: Aria2Task) => void
   requestMagnetSelection?: (gid: string) => void
-  clearMagnetSelections?: (gids: string[]) => void | Promise<void>
-  refreshTaskCounts: () => Promise<void>
+  clearSelections?: (gids: string[]) => void | Promise<void>
 }
 
 export function createTaskOperations(deps: TaskOperationsDeps) {
-  const { api, taskList, currentTaskGid, hideTaskDetail, fetchList, refreshTaskCounts } = deps
+  const { api, taskList, currentTaskGid, hideTaskDetail, fetchList } = deps
   const setTaskRemoving = deps.setTaskRemoving ?? (() => undefined)
 
   async function removeTask(task: Aria2Task) {
@@ -34,10 +34,10 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
     setTaskRemoving(task.gid, true)
     try {
       await api.deleteTask({ gid: task.gid, infoHash: task.infoHash })
-      await deps.clearMagnetSelections?.([task.gid])
+      await deps.clearSelections?.([task.gid])
       logger.info('TaskOps.removeTask', `gid=${task.gid}`)
       setTaskRemoving(task.gid, false)
-      await Promise.all([fetchList(), refreshTaskCounts()])
+      await fetchList()
       await api.saveSession()
     } catch (error) {
       setTaskRemoving(task.gid, false)
@@ -59,12 +59,11 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
   }
 
   async function finishSharing(task: Aria2Task): Promise<void> {
-    if (task.gid === currentTaskGid.value) hideTaskDetail()
     try {
       await api.finishSharing({ gid: task.gid })
       logger.info('TaskOps.finishSharing', `gid=${task.gid}`)
     } finally {
-      await Promise.all([fetchList(), refreshTaskCounts()])
+      await fetchList()
       await api.saveSession()
     }
   }
@@ -78,12 +77,16 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
       )
       return result
     } finally {
-      await Promise.all([fetchList(), refreshTaskCounts()])
+      await fetchList()
       await api.saveSession()
     }
   }
 
   async function resumeTask(task: Aria2Task): Promise<boolean> {
+    if (task.media?.state === 'awaiting-selection') {
+      deps.requestMediaSelection?.(task)
+      return false
+    }
     if (isAwaitingBtFileSelection(task)) {
       logger.info('TaskOps.resumeTask', `gid=${task.gid} blocked=file-selection-required`)
       deps.requestMagnetSelection?.(task.gid)
@@ -161,7 +164,7 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
 
   async function purgeTaskRecord() {
     await api.purgeTaskRecords()
-    await Promise.all([fetchList(), refreshTaskCounts()])
+    await fetchList()
     await api.saveSession()
   }
 
@@ -172,7 +175,7 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
       const result = await api.batchDeleteTasks({
         tasks: gids.map((gid) => ({ gid, infoHash: tasks.get(gid)?.infoHash })),
       })
-      await deps.clearMagnetSelections?.(result.succeeded)
+      await deps.clearSelections?.(result.succeeded)
       logger.info(
         'TaskOps.batchRemoveTask',
         `removed=${result.succeeded.length} failed=${result.failed.length} gids=[${gids.join(',')}]`,
@@ -180,7 +183,7 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
       return result
     } finally {
       gids.forEach((gid) => setTaskRemoving(gid, false))
-      await Promise.all([fetchList(), refreshTaskCounts()])
+      await fetchList()
       await api.saveSession()
     }
   }

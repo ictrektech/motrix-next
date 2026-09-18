@@ -18,11 +18,7 @@ import { isSupportedLocale, LOCALE_CATALOG, SUPPORTED_LOCALES } from '@shared/lo
 import { logger } from '@shared/logger'
 import { writeAppClipboardText } from '@shared/utils'
 import { isWebApp } from '@/web/runtime'
-import {
-  buildGeneralForm,
-  buildGeneralSystemConfig,
-  transformGeneralForStore,
-} from '@/composables/useGeneralPreference'
+import { buildGeneralForm } from '@/composables/useGeneralPreference'
 import { COLOR_SCHEMES, CUSTOM_COLOR_SCHEME_ID } from '@shared/constants'
 import { normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { useAppMessage } from '@/composables/useAppMessage'
@@ -118,8 +114,6 @@ function buildForm() {
 
 const { form, isDirty, handleSave, handleReset, patchSnapshot, resetSnapshot } = usePreferenceForm({
   buildForm,
-  buildSystemConfig: buildGeneralSystemConfig,
-  transformForStore: transformGeneralForStore,
   afterSave: async (f, prevConfig) => {
     // Locale change → restart prompt
     const prevLocale = prevConfig.locale || 'auto'
@@ -302,7 +296,7 @@ onMounted(async () => {
             <template #trigger>
               <button
                 class="sysinfo-ver-badge"
-                @click="copyVersionToClipboard(`Motrix Next v${sysAppVersion}`, 'Motrix Next')"
+                @click="copyVersionToClipboard(`Rayburst v${sysAppVersion}`, 'Rayburst')"
               >
                 <span class="sysinfo-ver-value">v{{ sysAppVersion || '\u2014' }}</span>
                 <svg class="sysinfo-ver-copy" width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -484,14 +478,14 @@ onMounted(async () => {
             </NRadioButton>
           </NRadioGroup>
         </NFormItem>
+        <NFormItem :label="t('preferences.show-logo-when-empty')">
+          <NSwitch v-model:value="form.showLogoWhenEmpty" />
+        </NFormItem>
         <NFormItem :label="t('preferences.reduce-motion')">
           <NSwitch v-model:value="form.reduceMotion" />
         </NFormItem>
         <NFormItem :label="t('preferences.sidebar-task-counts')">
           <NSwitch v-model:value="form.sidebarTaskCounts" />
-        </NFormItem>
-        <NFormItem :label="t('preferences.task-list-watermark')">
-          <NSwitch v-model:value="form.taskListWatermark" />
         </NFormItem>
         <NFormItem v-if="isMac" :label="t('preferences.dock-badge-speed')">
           <NSwitch v-model:value="form.dockBadgeSpeed" />

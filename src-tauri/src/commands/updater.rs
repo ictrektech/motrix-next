@@ -10,8 +10,7 @@ use tokio::sync::{Mutex, Notify};
 use url::Url;
 
 /// Base URL for update JSON files on the fixed `updater` GitHub Release tag.
-const UPDATER_BASE_URL: &str =
-    "https://github.com/AnInsomniacy/motrix-next/releases/download/updater";
+const UPDATER_BASE_URL: &str = "https://github.com/AnInsomniacy/rayburst/releases/download/updater";
 
 /// Serializable update metadata returned to the frontend.
 #[derive(Debug, Clone, Serialize)]
@@ -285,6 +284,19 @@ fn build_updater(
     channel: ReleaseChannel,
     proxy: &Option<String>,
 ) -> Result<tauri_plugin_updater::Updater, AppError> {
+    if app
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|config| config.get("pubkey"))
+        .and_then(serde_json::Value::as_str)
+        .is_none_or(str::is_empty)
+    {
+        return Err(AppError::Updater(
+            "Rayburst update signing is not configured".into(),
+        ));
+    }
     let endpoint =
         Url::parse(&endpoint_for_channel(channel)).map_err(|e| AppError::Updater(e.to_string()))?;
 
@@ -659,44 +671,16 @@ mod tests {
     // ── UpdateCancelState ───────────────────────────────────────────
 
     #[test]
-    fn cancel_state_starts_not_cancelled() {
+    fn cancellation_can_be_reset_for_the_next_download() {
         let state = UpdateCancelState::new();
         assert!(!state.is_cancelled());
-    }
-
-    #[test]
-    fn cancel_state_cancel_sets_flag() {
-        let state = UpdateCancelState::new();
         state.cancel();
-        assert!(state.is_cancelled());
-    }
-
-    #[test]
-    fn cancel_state_reset_clears_flag() {
-        let state = UpdateCancelState::new();
         state.cancel();
         assert!(state.is_cancelled());
         state.reset();
         assert!(!state.is_cancelled());
-    }
-
-    #[test]
-    fn cancel_state_double_cancel_is_idempotent() {
-        let state = UpdateCancelState::new();
-        state.cancel();
         state.cancel();
         assert!(state.is_cancelled());
-    }
-
-    #[test]
-    fn cancel_state_reset_cancel_cycle() {
-        let state = UpdateCancelState::new();
-        for _ in 0..5 {
-            state.cancel();
-            assert!(state.is_cancelled());
-            state.reset();
-            assert!(!state.is_cancelled());
-        }
     }
 
     // ── endpoint_for_channel ────────────────────────────────────────

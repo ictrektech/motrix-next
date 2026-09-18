@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "De downloaddatabase is aangemaakt door een nieuwere versie van Motrix Next en is niet compatibel met deze versie.\n\nOm door te gaan moet de downloadgeschiedenis worden gereset.\nUw gedownloade bestanden worden NIET beïnvloed.",
-  "database-conflict.cancel": "Afsluiten",
-  "database-conflict.confirm": "Resetten en starten",
-  "database-conflict.title": "Databaseversieconflict",
   "notification.bt-complete-body": "Seeden: %{task_name}",
   "notification.bt-complete-title": "BT-download voltooid",
   "notification.download-batch-start-body": "Downloaden: %{task_name} en %{count} andere taken",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "Download gestart",
   "notification.ed2k-complete-body": "Delen: %{task_name}",
   "notification.ed2k-complete-title": "ED2K-download voltooid",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Wachten op inhoudskeuze",
+  "notification.selection-body": "%{task_name}"
 }

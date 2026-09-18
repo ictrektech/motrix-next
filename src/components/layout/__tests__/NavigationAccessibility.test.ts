@@ -38,7 +38,6 @@ vi.mock('@/stores/app', () => ({
 vi.mock('@/stores/task', () => ({
   useTaskStore: () => ({
     taskCounts: { all: 8, progress: 3, failed: 1, completed: 4 },
-    refreshTaskCounts: vi.fn().mockResolvedValue(undefined),
   }),
 }))
 
@@ -92,15 +91,6 @@ describe('keyboard-accessible navigation', () => {
 
     await buttons[1].trigger('click')
     expect(showAddTaskDialogMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('links the sidebar logo to Vivibit', () => {
-    const wrapper = mount(AsideBar)
-
-    const logo = wrapper.find('.logo-mini a')
-    expect(logo.exists()).toBe(true)
-    expect(logo.attributes('href')).toBe('https://www.vivibit.com/')
-    expect(wrapper.html()).not.toContain('github.com/AnInsomniacy/motrix-next')
   })
 
   it('renders TaskSubnav routes as buttons and marks the active route', async () => {

@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "Baza danych historii pobierania została utworzona przez nowszą wersję Motrix Next i jest niezgodna z tą wersją.\n\nAby kontynuować, historia pobierania musi zostać zresetowana.\nPobrane pliki NIE zostaną zmienione.",
-  "database-conflict.cancel": "Wyjdź",
-  "database-conflict.confirm": "Resetuj i uruchom",
-  "database-conflict.title": "Konflikt wersji bazy danych",
   "notification.bt-complete-body": "Udostępnianie: %{task_name}",
   "notification.bt-complete-title": "Pobieranie BT ukończone",
   "notification.download-batch-start-body": "Pobieranie: %{task_name} i %{count} innych zadań",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "Pobieranie rozpoczęte",
   "notification.ed2k-complete-body": "Udostępnianie: %{task_name}",
   "notification.ed2k-complete-title": "Pobieranie ED2K ukończone",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Oczekiwanie na wybór zawartości",
+  "notification.selection-body": "%{task_name}"
 }

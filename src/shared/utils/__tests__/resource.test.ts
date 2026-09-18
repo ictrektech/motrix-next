@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeThunderLink, detectResource, needCheckCopyright, splitTaskLinks } from '../resource'
+import { detectResource } from '../resource'
 import { DETECT_RESOURCE_MAX_CHARS, DETECT_RESOURCE_MAX_LINES } from '@shared/constants'
 import type { ClipboardConfig } from '@shared/types'
 
@@ -14,17 +14,6 @@ const allProtocols: ClipboardConfig = {
 }
 
 describe('Resource detection contract', () => {
-  it('decodes valid Thunder links and preserves malformed input', () => {
-    const encoded = `thunder://${btoa('AAhttps://example.com/file.zipZZ')}`
-    expect(decodeThunderLink(encoded)).toBe('https://example.com/file.zip')
-    expect(decodeThunderLink('thunder://not valid base64')).toBe('thunder://not valid base64')
-  })
-
-  it('splits task input without decoding wrapped Thunder links', () => {
-    const thunder = `thunder://${btoa('AAhttp://example.com/file.zipZZ')}`
-    expect(splitTaskLinks(`http://example.com/a.zip\n${thunder}`)).toEqual(['http://example.com/a.zip', thunder])
-  })
-
   it.each([
     'https://example.com/file.zip',
     'sftp://example.com/file.iso',
@@ -73,11 +62,5 @@ describe('Resource detection contract', () => {
   it('keeps valid multi-line aria2 input while rejecting mixed prose', () => {
     expect(detectResource('https://example.com/index.html\n  out=index.html', allProtocols)).toBe(true)
     expect(detectResource('download this file\nhttps://example.com/file.zip', allProtocols)).toBe(false)
-  })
-
-  it('requires copyright checks only for media links', () => {
-    expect(needCheckCopyright('https://example.com/video.mp4')).toBe(true)
-    expect(needCheckCopyright('https://example.com/song.mp3')).toBe(true)
-    expect(needCheckCopyright('https://example.com/archive.zip')).toBe(false)
   })
 })

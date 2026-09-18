@@ -51,11 +51,6 @@ export function extractHistoryFilePaths(record: HistoryRecord): string[] {
   return []
 }
 
-/** Determine if stale record cleanup should run based on user config. */
-export function shouldRunStaleCleanup(config: Partial<{ autoDeleteStaleRecords: boolean }> | undefined): boolean {
-  return config?.autoDeleteStaleRecords === true
-}
-
 /** Reconstruct an Aria2Task from a persisted HistoryRecord.
  *
  * Synthesizes the `files[]` and optional `bittorrent` fields so TaskItem can
@@ -66,10 +61,8 @@ export function shouldRunStaleCleanup(config: Partial<{ autoDeleteStaleRecords: 
 export function historyRecordToTask(record: HistoryRecord): Aria2Task {
   const dir = record.dir ?? ''
   const totalLength = String(record.total_length ?? 0)
-  const completedLength = record.status === 'complete' ? totalLength : '0'
-
-  // Centralised meta parsing — never JSON.parse directly.
   const meta = parseHistoryMeta(record)
+  const completedLength = meta.completedLength ?? (record.status === 'complete' ? totalLength : '0')
 
   // Build files array: prefer multi-file snapshot from meta.files,
   // fall back to a single-file synthesis when no snapshot is available.
@@ -77,10 +70,10 @@ export function historyRecordToTask(record: HistoryRecord): Aria2Task {
   if (meta.files && meta.files.length > 0) {
     // Full restoration from snapshot — preserves all paths, lengths, and mirror URIs.
     files = meta.files.map((f, i) => ({
-      index: String(i + 1),
+      index: f.index ?? String(i + 1),
       path: f.path,
       length: f.length ?? '0',
-      completedLength: record.status === 'complete' ? (f.length ?? '0') : '0',
+      completedLength: f.completedLength ?? '0',
       selected: f.selected ?? 'true',
       uris: f.uris.map((uri) => ({ uri, status: 'used' as const })),
     }))
@@ -93,6 +86,8 @@ export function historyRecordToTask(record: HistoryRecord): Aria2Task {
   }
 
   const task: Aria2Task = {
+    media: meta.media,
+    mediaOptions: meta.mediaOptions,
     gid: record.gid,
     status: record.status as Aria2Task['status'],
     totalLength,
@@ -103,6 +98,8 @@ export function historyRecordToTask(record: HistoryRecord): Aria2Task {
     connections: '0',
     dir,
     files,
+    errorCode: meta.errorCode,
+    errorMessage: meta.errorMessage,
   }
 
   // BT tasks get a bittorrent.info stub so getTaskName() resolves correctly
@@ -190,6 +187,20 @@ export function buildHistoryRecord(task: Aria2Task): HistoryRecord {
  * Aria2 live data always takes priority. History-only records (from
  * previous sessions) are appended after the live data. */
 export function mergeHistoryIntoTasks(aria2Tasks: Aria2Task[], historyRecords: HistoryRecord[]): Aria2Task[] {
+  const LIVE_STATUSES: ReadonlySet<string> = new Set(['active', 'waiting', 'paused'])
+  const live = collectTaskIdentityBuckets(
+    aria2Tasks.filter((task) => LIVE_STATUSES.has(task.status) && !isMetadataTask(task)),
+  )
+  // Retained engine results follow the same protocol-identity rules as history.
+  aria2Tasks = aria2Tasks.filter(
+    (task) =>
+      LIVE_STATUSES.has(task.status) ||
+      !(
+        (task.infoHash && live.btInfoHashes.includes(task.infoHash)) ||
+        (task.ed2k?.hash && live.ed2kHashes.includes(task.ed2k.hash)) ||
+        (task.ed2k?.ed2kLink && live.ed2kLinks.includes(task.ed2k.ed2kLink))
+      ),
+  )
   if (historyRecords.length === 0) return aria2Tasks
 
   // ── Post-archive path correction ────────────────────────────────
@@ -203,7 +214,6 @@ export function mergeHistoryIntoTasks(aria2Tasks: Aria2Task[], historyRecords: H
   const recordByGid = new Map<string, HistoryRecord>()
   for (const r of historyRecords) recordByGid.set(r.gid, r)
 
-  const LIVE_STATUSES: ReadonlySet<string> = new Set(['active', 'waiting', 'paused'])
   for (const task of aria2Tasks) {
     if (LIVE_STATUSES.has(task.status)) continue
     const dbRecord = recordByGid.get(task.gid)

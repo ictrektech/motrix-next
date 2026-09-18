@@ -18,8 +18,6 @@ import {
 import { buildDownloadProxyOptions, normalizeProxyMode, type EngineProxyMode } from '@shared/utils/proxy'
 import { PROXY_SCOPES } from '@shared/constants'
 
-export { isValidAria2ProxyUrl } from '@shared/utils/proxy'
-
 // ── Types ───────────────────────────────────────────────────────────
 
 export interface NetworkForm {
@@ -44,29 +42,13 @@ export interface NetworkForm {
   recentUserAgentProfileIds: string[]
 }
 
-function buildPortConflictRecovery(config: AppConfig): PortConflictRecoveryConfig {
-  const defaults = D.portConflictRecovery
-  const saved = config.portConflictRecovery
-  return {
-    enabled: saved?.enabled ?? config.autoChangeConflictingPorts ?? defaults.enabled,
-    rangeStart: Number(saved?.rangeStart ?? defaults.rangeStart),
-    rangeEnd: Number(saved?.rangeEnd ?? defaults.rangeEnd),
-    rpc: saved?.rpc ?? defaults.rpc,
-    extensionApi: saved?.extensionApi ?? defaults.extensionApi,
-    bt: saved?.bt ?? defaults.bt,
-    ed2k: saved?.ed2k ?? defaults.ed2k,
-    ed2kUdp: saved?.ed2kUdp ?? defaults.ed2kUdp,
-  }
-}
-
 // ── Pure Functions ──────────────────────────────────────────────────
 
 /**
  * Builds the network form state from the preference store config.
- * All fallback values reference DEFAULT_APP_CONFIG (single source of truth).
  */
 export function buildNetworkForm(config: AppConfig): NetworkForm {
-  const proxy = config.proxy ?? D.proxy
+  const proxy = config.proxy
   return {
     proxy: {
       mode: normalizeProxyMode(proxy.mode),
@@ -76,16 +58,16 @@ export function buildNetworkForm(config: AppConfig): NetworkForm {
       bypass: proxy.bypass ?? D.proxy.bypass,
       scope: proxy.scope ?? [...PROXY_SCOPE_OPTIONS],
     },
-    enableUpnp: config.enableUpnp ?? D.enableUpnp,
-    autoChangeConflictingPorts: config.autoChangeConflictingPorts ?? D.autoChangeConflictingPorts,
-    portConflictRecovery: buildPortConflictRecovery(config),
-    connectTimeout: config.connectTimeout ?? D.connectTimeout,
-    timeout: config.timeout ?? D.timeout,
-    fileAllocation: config.fileAllocation ?? D.fileAllocation,
-    userAgent: config.userAgent ?? D.userAgent,
-    userAgentProfiles: config.userAgentProfiles ?? D.userAgentProfiles,
-    userAgentRules: config.userAgentRules ?? D.userAgentRules,
-    recentUserAgentProfileIds: config.recentUserAgentProfileIds ?? D.recentUserAgentProfileIds,
+    enableUpnp: config.enableUpnp,
+    autoChangeConflictingPorts: config.autoChangeConflictingPorts,
+    portConflictRecovery: { ...config.portConflictRecovery },
+    connectTimeout: config.connectTimeout,
+    timeout: config.timeout,
+    fileAllocation: config.fileAllocation,
+    userAgent: config.userAgent,
+    userAgentProfiles: config.userAgentProfiles,
+    userAgentRules: config.userAgentRules,
+    recentUserAgentProfileIds: config.recentUserAgentProfileIds,
   }
 }
 
@@ -111,9 +93,8 @@ export function buildNetworkSystemConfig(f: NetworkForm): Record<string, string>
  * Preserves port values as numbers and proxy as nested object.
  */
 export function transformNetworkForStore(f: NetworkForm): Partial<AppConfig> {
-  const data = { ...f } as Partial<AppConfig> & Record<string, unknown>
   return {
-    ...data,
+    ...f,
     autoChangeConflictingPorts: f.portConflictRecovery.enabled,
   }
 }

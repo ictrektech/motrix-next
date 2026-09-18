@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "Базата данни с история на изтеглянията е създадена от по-нова версия на Motrix Next и е несъвместима с тази версия.\n\nЗа да продължите, историята на изтеглянията трябва да бъде нулирана.\nВашите изтеглени файлове НЯМА да бъдат засегнати.",
-  "database-conflict.cancel": "Изход",
-  "database-conflict.confirm": "Нулиране и стартиране",
-  "database-conflict.title": "Конфликт на версиите на базата данни",
   "notification.bt-complete-body": "Споделяне: %{task_name}",
   "notification.bt-complete-title": "BT изтеглянето е завършено",
   "notification.download-batch-start-body": "Изтегляне: %{task_name} и %{count} други задачи",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "Изтеглянето започна",
   "notification.ed2k-complete-body": "Споделяне: %{task_name}",
   "notification.ed2k-complete-title": "ED2K изтеглянето е завършено",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Изчакване на избор на съдържание",
+  "notification.selection-body": "%{task_name}"
 }

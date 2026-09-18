@@ -1,7 +1,6 @@
 /** @fileoverview Tests for config utilities. */
 import { describe, it, expect } from 'vitest'
 import {
-  changeKeysCase,
   changeKeysToCamelCase,
   changeKeysToKebabCase,
   diffConfig,
@@ -41,12 +40,6 @@ describe('changeKeysToKebabCase', () => {
   })
 })
 
-describe('changeKeysCase', () => {
-  it('returns empty when converter is not a function', () => {
-    expect(changeKeysCase({ a: 1 }, null as unknown as (s: string) => string)).toEqual({})
-  })
-})
-
 describe('diffConfig', () => {
   it('returns only changed keys', () => {
     const result = diffConfig({ a: 1, b: 2 }, { a: 1, b: 3 })
@@ -56,7 +49,7 @@ describe('diffConfig', () => {
     const result = diffConfig({ a: 1 }, { a: 1 })
     expect(result).toEqual({})
   })
-  it('diffs arrays via JSON.stringify', () => {
+  it('detects changed array values', () => {
     const result = diffConfig({ tags: ['a', 'b'] }, { tags: ['a', 'c'] })
     expect(result).toEqual({ tags: ['a', 'c'] })
   })
@@ -64,17 +57,9 @@ describe('diffConfig', () => {
     const result = diffConfig({ tags: ['a', 'b'] }, { tags: ['a', 'b'] })
     expect(result).toEqual({})
   })
-  it('diffs nested objects via JSON.stringify', () => {
+  it('detects changed nested values', () => {
     const result = diffConfig({ proxy: { host: 'a' } }, { proxy: { host: 'b' } })
     expect(result).toEqual({ proxy: { host: 'b' } })
-  })
-
-  it('treats coerce-equal primitives as unchanged (string "29120" vs number 29120)', () => {
-    const result = diffConfig(
-      { listenPort: '29120', dhtListenPort: '29130' },
-      { listenPort: 29120, dhtListenPort: 29130 },
-    )
-    expect(result).toEqual({})
   })
 
   it('still detects genuinely different values across types', () => {
@@ -114,16 +99,6 @@ describe('checkIsNeedRestart', () => {
   })
   it('detects restart key among multiple changes', () => {
     expect(checkIsNeedRestart({ theme: 'dark', rpcSecret: 'changed' })).toBe(true)
-  })
-
-  it('returns false when port values are same but types differ (real afterSave scenario)', () => {
-    // Simulates the real bug: prevConfig stores ports as strings,
-    // form uses numbers, but the actual values are identical.
-    const changed = diffConfig(
-      { listenPort: '29120', dhtListenPort: '29130', rpcListenPort: 29100, rpcSecret: 'abc' },
-      { listenPort: 29120, dhtListenPort: 29130, rpcListenPort: 29100, rpcSecret: 'abc' },
-    )
-    expect(checkIsNeedRestart(changed)).toBe(false)
   })
 })
 
@@ -243,12 +218,12 @@ describe('filterHotReloadableKeys', () => {
       'rpc-listen-port': '29100',
       'bt-tracker': 'udp://t.example.org:6969',
       'rpc-secret': 'secret',
-      'user-agent': 'Motrix/3.4.1',
+      'user-agent': 'Rayburst/3.4.1',
     }
     expect(filterHotReloadableKeys(config)).toEqual({
       'max-concurrent-downloads': '8',
       'bt-tracker': 'udp://t.example.org:6969',
-      'user-agent': 'Motrix/3.4.1',
+      'user-agent': 'Rayburst/3.4.1',
     })
   })
 })

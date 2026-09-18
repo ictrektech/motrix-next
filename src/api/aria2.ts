@@ -2,8 +2,9 @@
  * @fileoverview Aria2 API — invoke() transport layer.
  *
  * All aria2 RPC calls go through Tauri invoke() to the Rust backend.
- * The Rust Aria2Client handles HTTP JSON-RPC communication with Aria2 Next.
+ * Rust owns task policy and the HTTP JSON-RPC connection to Aria2 Next.
  */
+import { mediaOutputHint } from '@shared/utils/media'
 import { invoke } from '@tauri-apps/api/core'
 import { changeKeysToCamelCase, formatOptionsForEngine } from '@shared/utils'
 import type {
@@ -26,7 +27,7 @@ import type {
 } from '@shared/types'
 import { logger } from '@shared/logger'
 import { resolveDownloadDir } from '@shared/utils/fileCategory'
-import { extractDecodedFilename, sanitizeAria2OutHint } from '@shared/utils/batchHelpers'
+import { extractDecodedFilename } from '@shared/utils/batchHelpers'
 import { summarizeAria2Options, summarizeExternalInput } from '@shared/utils/externalInputDiagnostics'
 import { useEngineStore } from '@/stores/engine'
 import { isWebApp } from '@/web/runtime'
@@ -107,7 +108,7 @@ export async function fetchActiveTaskList(): Promise<Aria2Task[]> {
   return invoke<Aria2Task[]>('aria2_fetch_active_task_list')
 }
 
-/** Fetches task list by status type: active+waiting or stopped. */
+/** Fetches a native task snapshot: all, active+waiting, or stopped. */
 export async function fetchTaskList(params: { type: string; limit?: number }): Promise<Aria2Task[]> {
   return invoke<Aria2Task[]>('aria2_fetch_task_list', {
     type: params.type,
@@ -129,6 +130,7 @@ export async function fetchTaskItemWithPeers(params: { gid: string }): Promise<A
 export async function addUri(params: {
   uris: string[]
   outs: string[]
+  contexts?: Record<string, ExternalDownloadContext>
   options: Aria2EngineOptions
   fileCategory?: {
     enabled: boolean
@@ -144,16 +146,11 @@ export async function addUri(params: {
     const opts: Record<string, string> = { ...engineOptions }
     if (outs[index]) opts.out = outs[index]
 
-    // Defense-in-depth: sanitize out for filesystem safety (#261, #264).
-    // Rust sanitize_out_option is the authoritative boundary; this is belt-and-suspenders.
-    if (opts.out) opts.out = sanitizeAria2OutHint(opts.out)
-    if (!opts.out) delete opts.out
-
     // Smart file classification: resolve per-URI download directory
     if (fileCategory?.enabled && fileCategory.categories.length > 0) {
       const context = fileCategory.contexts?.[uri]
       opts.dir = resolveDownloadDir(
-        opts.out || extractDecodedFilename(uri) || uri,
+        mediaOutputHint(uri, opts.out || extractDecodedFilename(uri) || uri, opts.media, opts['media-format']),
         opts.dir || '',
         true,
         fileCategory.categories,
@@ -163,7 +160,11 @@ export async function addUri(params: {
       )
     }
 
-    return invoke<string>('aria2_add_uri', { uris: [uri], options: opts })
+    return invoke<string>('aria2_add_uri', {
+      uris: [uri],
+      options: opts,
+      requestId: params.contexts?.[uri]?.requestId ?? fileCategory?.contexts?.[uri]?.requestId,
+    })
   })
 
   const gids = await Promise.all(tasks)
@@ -188,9 +189,17 @@ export async function addUriAtomic(params: { uris: string[]; options: Aria2Engin
 }
 
 /** Adds a torrent download from a base64-encoded .torrent file. */
-export async function addTorrent(params: { torrent: string; options: Aria2EngineOptions }): Promise<string> {
+export async function addTorrent(params: {
+  torrent: string
+  options: Aria2EngineOptions
+  requestId?: string
+}): Promise<string> {
   const engineOptions = formatOptionsForEngine(withBtSafetyOptions(params.options))
-  const gid = await invoke<string>('aria2_add_torrent', { torrent: params.torrent, options: engineOptions })
+  const gid = await invoke<string>('aria2_add_torrent', {
+    torrent: params.torrent,
+    options: engineOptions,
+    requestId: params.requestId,
+  })
   logger.info('aria2.addTorrent', `gid=${gid}`)
   return gid
 }
@@ -287,6 +296,8 @@ export async function purgeTaskRecords(): Promise<void> {
 }
 
 const api = {
+  retryMedia,
+  finishMedia,
   getVersion,
   getGlobalStat,
   changeGlobalOption,
@@ -321,3 +332,18 @@ const api = {
 }
 
 export default api
+
+/** Request publication; completion arrives through the normal task lifecycle. */
+export async function finishMedia(gid: string): Promise<string> {
+  return invoke<string>('aria2_finish_media', { gid })
+}
+export async function confirmMedia(gid: string, options: Aria2EngineOptions): Promise<string> {
+  return invoke<string>('aria2_confirm_media', { gid, options: formatOptionsForEngine(options) })
+}
+export async function retryMedia(gid: string, options: Aria2EngineOptions = {}): Promise<string> {
+  return invoke<string>('aria2_retry_media', { gid, options: formatOptionsForEngine(options) })
+}
+
+export async function batchFinishMedia(gids: string[]): Promise<BatchTaskOperationResult> {
+  return invoke<BatchTaskOperationResult>('aria2_batch_finish_media', { gids })
+}

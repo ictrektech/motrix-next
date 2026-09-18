@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "下載歷史資料庫由更新版本的 Motrix Next 建立，\n與目前版本不相容。\n\n繼續使用需要重設下載歷史記錄。\n已下載的檔案不會受到影響。",
-  "database-conflict.cancel": "退出",
-  "database-conflict.confirm": "重設並啟動",
-  "database-conflict.title": "資料庫版本不相容",
   "notification.bt-complete-body": "做種中：%{task_name}",
   "notification.bt-complete-title": "BT 下載完成",
   "notification.download-batch-start-body": "下載中：%{task_name} 等 %{count} 個任務",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "下載已開始",
   "notification.ed2k-complete-body": "共享中：%{task_name}",
   "notification.ed2k-complete-title": "ED2K 下載完成",
-  "notification.error-unknown": "未知錯誤"
+  "notification.error-unknown": "未知錯誤",
+  "notification.selection-title": "等待選擇下載內容",
+  "notification.selection-body": "%{task_name}"
 }

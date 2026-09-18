@@ -1,4 +1,4 @@
-/** @fileoverview Locale utilities: direction detection, system locale resolution, form label width. */
+/** @fileoverview Locale negotiation and text direction. */
 import { match } from '@formatjs/intl-localematcher'
 import { isSupportedLocale, LOCALE_CATALOG, SUPPORTED_LOCALES, type SupportedLocale } from '@shared/localeCatalog'
 
@@ -6,11 +6,7 @@ import { isSupportedLocale, LOCALE_CATALOG, SUPPORTED_LOCALES, type SupportedLoc
  * Resolves a raw OS locale string (e.g. `'zh-Hans-CN'`) to the best
  * matching locale code from the available set (e.g. `'zh-CN'`).
  *
- * Resolution strategy:
- *  1. Normalize Apple-style subtags (`-Hans`, `-Hant`) that don't match BCP 47.
- *  2. Exact match against available locales.
- *  3. Prefix match (e.g. `'pt'` → `'pt-BR'`).
- *  4. Fallback to `'en-US'`.
+ * Uses Intl locale matching and falls back to en-US for malformed tags.
  */
 export function resolveSystemLocale(
   rawLocale: string,
@@ -24,14 +20,10 @@ export function resolveSystemLocale(
   }
 }
 
-export const isRTL = (locale = 'en-US'): boolean => {
+const isRTL = (locale = 'en-US'): boolean => {
   return LOCALE_CATALOG.find(({ code }) => code === locale)?.direction === 'rtl'
 }
 
 export const getLangDirection = (locale = 'en-US'): string => {
   return isRTL(locale) ? 'rtl' : 'ltr'
-}
-
-export const calcFormLabelWidth = (locale: string): string => {
-  return locale.startsWith('de') ? '28%' : '25%'
 }

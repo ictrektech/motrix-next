@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "O banco de dados do histórico de downloads foi criado por uma versão mais recente do Motrix Next e é incompatível com esta versão.\n\nPara continuar, o histórico de downloads precisa ser redefinido.\nSeus arquivos baixados NÃO serão afetados.",
-  "database-conflict.cancel": "Sair",
-  "database-conflict.confirm": "Redefinir e iniciar",
-  "database-conflict.title": "Conflito de versão do banco de dados",
   "notification.bt-complete-body": "Semeando: %{task_name}",
   "notification.bt-complete-title": "Download BT concluído",
   "notification.download-batch-start-body": "Baixando: %{task_name} e %{count} outras tarefas",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "Download iniciado",
   "notification.ed2k-complete-body": "Compartilhando: %{task_name}",
   "notification.ed2k-complete-title": "Download ED2K concluído",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Aguardando seleção de conteúdo",
+  "notification.selection-body": "%{task_name}"
 }

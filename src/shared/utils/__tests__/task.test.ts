@@ -2,10 +2,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   calcProgress,
-  calcRatio,
   getTaskCompletedLength,
   getTaskName,
-  isMagnetTask,
   isBtMetadataTask,
   checkTaskIsBT,
   checkTaskIsEd2kSearch,
@@ -14,10 +12,7 @@ import {
   getTaskSharingState,
   getTaskSharingTime,
   getFileNameFromFile,
-  getTaskDisplayName,
   getTaskUri,
-  checkTaskTitleIsEmpty,
-  mergeTaskResult,
   resolveOpenTarget,
   getRestartDescriptors,
 } from '../task'
@@ -78,25 +73,6 @@ describe('calcProgress', () => {
 
   it('returns 0 when completed is 0', () => {
     expect(calcProgress(1000, 0)).toBe(0)
-  })
-})
-
-describe('calcRatio', () => {
-  it('returns 0 for zero total length', () => {
-    expect(calcRatio(0, 0)).toBe(0)
-  })
-
-  it('calculates ratio correctly', () => {
-    expect(calcRatio(1000, 500)).toBe(0.5)
-    expect(calcRatio(1000, 1000)).toBe(1)
-  })
-
-  it('returns 0 when upload is 0', () => {
-    expect(calcRatio(1000, 0)).toBe(0)
-  })
-
-  it('handles string inputs', () => {
-    expect(calcRatio('1000', '2000')).toBe(2)
   })
 })
 
@@ -294,25 +270,25 @@ describe('getFileNameFromFile', () => {
   })
 })
 
-// ── getTaskDisplayName ───────────────────────────────────────────────
+// ── getTaskName ───────────────────────────────────────────────
 
-describe('getTaskDisplayName', () => {
-  it('decodes percent-encoded filename from file path', () => {
+describe('getTaskName', () => {
+  it('preserves literal percent sequences in native file paths', () => {
     const task = createMockTask({
       files: [createMockFile({ path: '/downloads/AAA%20BBB.mp3' })],
     })
-    expect(getTaskDisplayName(task)).toBe('AAA BBB.mp3')
+    expect(getTaskName(task)).toBe('AAA%20BBB.mp3')
   })
 
-  it('decodes UTF-8 percent sequences in filename', () => {
+  it('does not reinterpret an existing filename as an encoded URL', () => {
     const task = createMockTask({
       files: [createMockFile({ path: '/downloads/file-r%C3%A9sum%C3%A9.txt' })],
     })
-    expect(getTaskDisplayName(task)).toBe('file-résumé.txt')
+    expect(getTaskName(task)).toBe('file-r%C3%A9sum%C3%A9.txt')
   })
 
   it('returns default name for null task', () => {
-    expect(getTaskDisplayName(null, { defaultName: 'Unknown' })).toBe('Unknown')
+    expect(getTaskName(null, { defaultName: 'Unknown' })).toBe('Unknown')
   })
 
   it('passes through BT names unmodified', () => {
@@ -320,52 +296,33 @@ describe('getTaskDisplayName', () => {
       files: [createMockFile()],
       bittorrent: { info: { name: 'Ubuntu 24.04' } },
     })
-    expect(getTaskDisplayName(task)).toBe('Ubuntu 24.04')
+    expect(getTaskName(task)).toBe('Ubuntu 24.04')
   })
 
   it('returns original name for malformed percent sequence', () => {
     const task = createMockTask({
       files: [createMockFile({ path: '/downloads/bad%ZZname.txt' })],
     })
-    expect(getTaskDisplayName(task)).toBe('bad%ZZname.txt')
+    expect(getTaskName(task)).toBe('bad%ZZname.txt')
   })
 
   it('handles already-decoded path (post-Layer-1 fix) without double-decoding', () => {
-    // After Layer 1, aria2 reports decoded file.path — decoding again should be a no-op
     const task = createMockTask({
       files: [createMockFile({ path: '/downloads/AAA BBB.mp3' })],
     })
-    expect(getTaskDisplayName(task)).toBe('AAA BBB.mp3')
+    expect(getTaskName(task)).toBe('AAA BBB.mp3')
   })
 
   it('handles literal percent sign in filename safely', () => {
-    // A file literally named "100%.pdf" — decodeURIComponent throws → catch returns original
     const task = createMockTask({
       files: [createMockFile({ path: '/downloads/100%.pdf' })],
     })
-    expect(getTaskDisplayName(task)).toBe('100%.pdf')
+    expect(getTaskName(task)).toBe('100%.pdf')
   })
 
   it('returns empty string for task with empty files array', () => {
     const task = createMockTask({ files: [] })
-    expect(getTaskDisplayName(task)).toBe('')
-  })
-})
-
-describe('isMagnetTask', () => {
-  it('returns true for magnet task without info', () => {
-    const task = createMockTask({ bittorrent: {} })
-    expect(isMagnetTask(task)).toBe(true)
-  })
-
-  it('returns false for regular BT task', () => {
-    const task = createMockTask({ bittorrent: { info: { name: 'test' } } })
-    expect(isMagnetTask(task)).toBe(false)
-  })
-
-  it('returns false for HTTP task', () => {
-    const task = createMockTask()
-    expect(isMagnetTask(task)).toBe(false)
+    expect(getTaskName(task)).toBe('')
   })
 })
 
@@ -526,69 +483,6 @@ describe('getTaskUri', () => {
       files: [createMockFile(), createMockFile({ index: '2' })],
     })
     expect(getTaskUri(task)).toBe('')
-  })
-})
-
-describe('checkTaskTitleIsEmpty', () => {
-  it('returns true when path is empty and no BT info', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '' })],
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(true)
-  })
-
-  it('returns false when path has value', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '/tmp/file.txt' })],
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-
-  it('returns false when BT info name is present', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '' })],
-      bittorrent: { info: { name: 'My Torrent' } },
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-
-  it('falls through to file path when BT info name is empty', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '/tmp/file.txt' })],
-      bittorrent: { info: { name: '' } },
-    })
-    // bittorrent.info.name is falsy (''), so code falls through to file.path
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-
-  it('uses BT info name when present (non-empty)', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '' })],
-      bittorrent: { info: { name: 'My Torrent' } },
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-})
-
-describe('mergeTaskResult', () => {
-  it('merges multiple arrays', () => {
-    const result = mergeTaskResult([
-      ['a', 'b'],
-      ['c', 'd'],
-    ])
-    expect(result).toEqual(['a', 'b', 'c', 'd'])
-  })
-
-  it('returns empty for empty input', () => {
-    expect(mergeTaskResult([])).toEqual([])
-  })
-
-  it('returns empty for default parameter', () => {
-    expect(mergeTaskResult()).toEqual([])
-  })
-
-  it('handles single nested array', () => {
-    expect(mergeTaskResult([['x']])).toEqual(['x'])
   })
 })
 

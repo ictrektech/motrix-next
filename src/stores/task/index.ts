@@ -1,20 +1,28 @@
 /** @fileoverview Pinia store for download task management: list, add, pause, resume, remove. */
 import { defineStore } from 'pinia'
-import { reactive, ref, watch } from 'vue'
+import { canSelectMedia } from '@shared/utils/media'
+import { isPendingMagnetSelectionTask } from '@/composables/useMagnetFlow'
+import { useTaskSelectionStore, type SelectionRequest } from '@/stores/taskSelection'
+import { computed, reactive, ref, watch } from 'vue'
 import { EMPTY_STRING } from '@shared/constants'
 import { checkTaskIsEd2kSearch } from '@shared/utils'
 import { logger } from '@shared/logger'
-import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, HistoryRecord, TaskApi } from '@shared/types'
+import type {
+  Aria2Task,
+  Aria2File,
+  Aria2Peer,
+  Aria2EngineOptions,
+  AddUriParams,
+  TaskApi,
+  HistoryRecord,
+} from '@shared/types'
 
-import {
-  buildHistoryRecord,
-  historyRecordToTask,
-  mergeHistoryIntoTasks,
-  isMetadataTask,
-} from '@/composables/useTaskLifecycle'
+import { mergeHistoryIntoTasks, isMetadataTask, buildHistoryRecord } from '@/composables/useTaskLifecycle'
+import { isWebApp } from '@/web/runtime'
 import { buildMagnetOptions } from '@/composables/useMagnetFlow'
 import {
   registerAddedAt,
+  getAddedAt,
   trackFirstSeen,
   loadAddedAtFromRecords,
   buildSortableAddedAtMap,
@@ -23,7 +31,6 @@ import {
   applyManualOrder,
   createManualOrderSnapshot,
   sortTasks,
-  sortRecords,
   type ProgressSortField,
   type AllSortField,
   type SortDirection,
@@ -32,7 +39,7 @@ import {
 } from '@/composables/useTaskSort'
 import { DEFAULT_TASK_SORT } from '@/composables/useTaskSort'
 import { useHistoryStore } from '@/stores/history'
-import { useHttpAuthStore } from '@/stores/httpAuth'
+import { useDatabaseStore } from '@/stores/database'
 import { usePreferenceStore } from '@/stores/preference'
 
 import { resubmitTask, type TaskResubmissionMode } from './resubmit'
@@ -42,6 +49,10 @@ export type { Aria2Task, Aria2File, Aria2Peer }
 
 const DEFAULT_TASK_PAGE_SIZE = 20
 const TASK_SCOPES: readonly TaskScope[] = ['all', 'progress', 'failed', 'completed']
+
+function isLiveTask(task: Aria2Task): boolean {
+  return task.status === 'active' || task.status === 'waiting' || task.status === 'paused'
+}
 
 function normalizeTaskScope(list: string): TaskScope {
   return TASK_SCOPES.includes(list as TaskScope) ? (list as TaskScope) : 'all'
@@ -58,6 +69,7 @@ export const useTaskStore = defineStore('task', () => {
   const preferenceStore = usePreferenceStore()
   const currentList = ref<TaskScope>('all')
   const taskDetailVisible = ref(false)
+  const taskDetailClosing = ref(false)
   const currentTaskGid = ref(EMPTY_STRING)
   const enabledFetchPeers = ref(false)
   const currentTaskItem = ref<Aria2Task | null>(null)
@@ -66,8 +78,8 @@ export const useTaskStore = defineStore('task', () => {
   const taskList = ref<Aria2Task[]>([])
   const removingGids = ref<string[]>([])
   const resubmittingGids = ref<string[]>([])
-  const taskListTransitionRevision = ref(0)
   const taskCounts = reactive<TaskCounts>({ all: 0, progress: 0, failed: 0, completed: 0 })
+  const isCurrentListEmpty = computed(() => taskList.value.length === 0)
   const taskPagination = reactive({
     all: { page: 1, total: 0, loaded: false },
     progress: { page: 1, total: 0, loaded: false },
@@ -79,41 +91,14 @@ export const useTaskStore = defineStore('task', () => {
 
   let api: TaskApi
   let apiReady = false
-  let countRequestId = 0
-  let listRequestId = 0
+  let liveSnapshot: Aria2Task[] = []
+  let historyRecords: HistoryRecord[] = []
+  let refreshWork: Promise<void> | undefined
+  let refreshAgain = false
+  let historyWork: Promise<void> | undefined
+  let historyAgain = false
+  let detailWork: Promise<void> | undefined
   const resubmissionPromises = new Map<string, Promise<void>>()
-
-  async function backfillStoppedHistory(
-    historyStore: {
-      addRecord: (record: HistoryRecord) => Promise<void>
-      getRecords: (status?: string, limit?: number) => Promise<HistoryRecord[]>
-    },
-    stoppedTasks: Aria2Task[],
-    status?: 'complete' | 'error',
-  ): Promise<number> {
-    const terminalTasks = stoppedTasks.filter((task) => {
-      if (status && task.status !== status) return false
-      return (
-        (task.status === 'complete' || task.status === 'error') && !checkTaskIsEd2kSearch(task) && !isMetadataTask(task)
-      )
-    })
-    if (terminalTasks.length === 0) return 0
-
-    const records = await historyStore.getRecords(status)
-    const knownGids = new Set(records.map((record) => record.gid))
-    const missing = terminalTasks.filter((task) => !knownGids.has(task.gid))
-    if (missing.length === 0) return 0
-
-    await Promise.all(
-      missing.map((task) =>
-        historyStore.addRecord(buildHistoryRecord(task)).catch((e: unknown) => {
-          logger.debug('TaskStore.backfillStoppedHistory', e)
-        }),
-      ),
-    )
-    return missing.length
-  }
-
   /** In-memory map: GID → original .torrent file path for post-download cleanup. */
   const torrentSourcePaths = new Map<string, string>()
   const registerTorrentSource = (gid: string, path: string) => torrentSourcePaths.set(gid, path)
@@ -134,13 +119,9 @@ export const useTaskStore = defineStore('task', () => {
       hideTaskDetail,
       fetchList,
       setTaskRemoving,
-      requestMagnetSelection: (gid) => {
-        void import('@/stores/app').then(({ useAppStore }) => useAppStore().requestMagnetSelection(gid))
-      },
-      clearMagnetSelections: (gids) => {
-        return import('@/stores/app').then(({ useAppStore }) => useAppStore().clearMagnetSelections(gids))
-      },
-      refreshTaskCounts,
+      requestMediaSelection: (task) => useTaskSelectionStore().request({ kind: 'media', gid: task.gid }),
+      requestMagnetSelection: (gid) => useTaskSelectionStore().request({ kind: 'bt', gid }),
+      clearSelections: (gids) => useTaskSelectionStore().forget(gids),
     })
     Object.assign(taskOps, ops)
   }
@@ -222,136 +203,156 @@ export const useTaskStore = defineStore('task', () => {
     },
   )
 
-  async function refreshTaskCounts(): Promise<void> {
-    if (!apiReady) return
-    const requestId = ++countRequestId
-    try {
-      const historyStore = useHistoryStore()
-      const [liveTasks, stoppedTasks] = await Promise.all([
-        api.fetchTaskList({ type: 'active' }).then((tasks) => tasks.filter((task) => !checkTaskIsEd2kSearch(task))),
-        api.fetchTaskList({ type: 'stopped', limit: 256 }),
-      ])
-      await backfillStoppedHistory(historyStore, stoppedTasks)
-      const statusCounts = await historyStore.getStatusCounts()
-      const [completedOverlap, failedOverlap] = await Promise.all([
-        historyStore.countRecordsMatchingTaskIdentities(liveTasks, 'complete'),
-        historyStore.countRecordsMatchingTaskIdentities(liveTasks, 'error'),
-      ])
-      if (requestId !== countRequestId) return
+  function publishSnapshot() {
+    const scope = currentTaskTab()
+    const waiting: SelectionRequest[] = []
+    const available: SelectionRequest[] = []
+    for (const task of liveSnapshot) {
+      if (isPendingMagnetSelectionTask(task)) {
+        waiting.push({ kind: 'bt', gid: task.gid })
+        available.push({ kind: 'bt', gid: task.gid })
+      } else if (canSelectMedia(task)) {
+        available.push({ kind: 'media', gid: task.gid })
+        if (task.media?.state === 'awaiting-selection') waiting.push({ kind: 'media', gid: task.gid })
+      }
+    }
+    const selection = useTaskSelectionStore()
+    selection.reconcile(waiting, available)
+    selection.forget(
+      liveSnapshot.filter((task) => ['complete', 'removed'].includes(task.status)).map((task) => task.gid),
+    )
+    const removing = new Set(removingGids.value)
+    const tasks = mergeHistoryIntoTasks(
+      liveSnapshot.filter((task) => task.status !== 'removed'),
+      historyRecords,
+    ).filter(
+      (task) => !removing.has(task.gid) && !checkTaskIsEd2kSearch(task) && (isLiveTask(task) || !isMetadataTask(task)),
+    )
 
-      const progress = liveTasks.length
-      const completed = Math.max(0, statusCounts.completed - completedOverlap)
-      const failed = Math.max(0, statusCounts.failed - failedOverlap)
-      Object.assign(taskCounts, { progress, completed, failed, all: progress + completed + failed })
-    } catch (e) {
-      if (requestId !== countRequestId) return
-      logger.debug('TaskStore.refreshTaskCounts', e instanceof Error ? e.message : String(e))
+    Object.assign(taskCounts, {
+      all: tasks.length,
+      progress: tasks.filter(isLiveTask).length,
+      completed: tasks.filter((task) => task.status === 'complete').length,
+      failed: tasks.filter((task) => task.status === 'error').length,
+    })
+    const data = tasks.filter(
+      (task) =>
+        scope === 'all' ||
+        (scope === 'progress' ? isLiveTask(task) : task.status === (scope === 'failed' ? 'error' : 'complete')),
+    )
+    loadAddedAtFromRecords(historyRecords)
+    trackFirstSeen(data)
+    const addedAtIndex = buildSortableAddedAtMap(data, historyRecords)
+    const completedAtIndex = new Map(historyRecords.map((record) => [record.gid, record.completed_at ?? '']))
+    const { field, direction } = preferenceStore.config.taskSort?.[scope] ?? DEFAULT_TASK_SORT[scope]
+    if (field === 'manual') {
+      applyManualOrder(data, preferenceStore.config.taskManualOrder[scope], (fresh) => {
+        sortTasks(fresh, 'added-at', 'desc', addedAtIndex)
+      })
+    } else {
+      sortTasks(data, field, direction, addedAtIndex, completedAtIndex)
+    }
+    taskList.value = data
+    updateCurrentTaskTotal(data.length)
+    clampCurrentTaskPage()
+    refreshCurrentTaskPageCount()
+    if (taskDetailVisible.value) {
+      const current = tasks.find((task) => task.gid === currentTaskGid.value)
+      if (current) updateCurrentTaskItem({ ...current, peers: currentTaskPeers.value })
     }
   }
 
-  async function fetchList() {
-    const requestId = ++listRequestId
-    try {
-      const scope = currentTaskTab()
-      // Progress is engine-primary. Failed and completed are history-primary.
-      // All is the exclusive union of live engine tasks and persisted terminal records.
-      const sortConfig = usePreferenceStore().config?.taskSort ?? DEFAULT_TASK_SORT
-      let data: Aria2Task[]
-      if (scope === 'failed' || scope === 'completed') {
-        const historyStore = useHistoryStore()
-        const status = scope === 'failed' ? 'error' : 'complete'
-        let records = await historyStore.getRecords(status)
-        const [liveTasks, stoppedTasks] = await Promise.all([
-          api.fetchTaskList({ type: 'active' }),
-          api.fetchTaskList({ type: 'stopped', limit: 256 }),
-        ])
-        if ((await backfillStoppedHistory(historyStore, stoppedTasks, status)) > 0) {
-          records = await historyStore.getRecords(status)
-        }
-        const recordByGid = new Map(records.map((record) => [record.gid, record]))
-        const terminalTasks = stoppedTasks.filter((task) => task.status === status)
-        const visibleRecords = mergeHistoryIntoTasks([...liveTasks, ...terminalTasks], records)
-          .filter((task) => task.status === status)
-          .map((task) => recordByGid.get(task.gid))
-          .filter((record): record is NonNullable<typeof record> => record !== undefined)
-        const { field, direction } = sortConfig[scope]
-        if (field === 'manual') {
-          applyManualOrder(visibleRecords, usePreferenceStore().config.taskManualOrder[scope], (fresh) => {
-            sortRecords(fresh, 'added-at', 'desc')
-          })
-        } else {
-          sortRecords(visibleRecords, field, direction)
-        }
-        data = visibleRecords.map(historyRecordToTask)
-      } else if (scope === 'all') {
-        const historyStore = useHistoryStore()
-        const [activeTasks, stoppedTasks, initialHistoryRecords] = await Promise.all([
-          api.fetchTaskList({ type: 'active' }),
-          api.fetchTaskList({ type: 'stopped', limit: 128 }),
-          historyStore.getRecords(),
-        ])
-        let historyRecords = initialHistoryRecords
-        if ((await backfillStoppedHistory(historyStore, stoppedTasks)) > 0) {
-          historyRecords = await historyStore.getRecords()
-        }
-        data = mergeHistoryIntoTasks([...activeTasks, ...stoppedTasks], historyRecords)
-        data = data.filter((t) => !checkTaskIsEd2kSearch(t))
-        // Filter stale metadata tasks (completed magnet resolution) but keep
-        // actively-downloading metadata visible so users see the progress.
-        const LIVE_TASK_STATUSES = new Set(['active', 'waiting', 'paused'])
-        data = data.filter((t) => LIVE_TASK_STATUSES.has(t.status) || !isMetadataTask(t))
+  /**
+   * Web builds have no Rust task monitor, so terminal tasks are never persisted
+   * into the history DB by the backend. Backfill records for stopped tasks from
+   * the live snapshot; dedupe against `historyRecords` keeps this idempotent.
+   * Returns true when new records were written.
+   */
+  async function backfillWebStoppedHistory(): Promise<boolean> {
+    if (!isWebApp || liveSnapshot.length === 0) return false
+    const knownGids = new Set(historyRecords.map((record) => record.gid))
+    const missing = liveSnapshot.filter(
+      (task) =>
+        (task.status === 'complete' || task.status === 'error') &&
+        !knownGids.has(task.gid) &&
+        !checkTaskIsEd2kSearch(task) &&
+        !isMetadataTask(task),
+    )
+    if (missing.length === 0) return false
+    const historyStore = useHistoryStore()
+    await Promise.all(
+      missing.map((task) =>
+        historyStore.addRecord(buildHistoryRecord(task)).catch((error: unknown) => {
+          logger.debug('TaskStore.backfillStoppedHistory', error)
+        }),
+      ),
+    )
+    return true
+  }
 
-        // Load DB-persisted added_at FIRST so that trackFirstSeen does not
-        // overwrite completed tasks' timestamps with Date.now().
-        loadAddedAtFromRecords(historyRecords)
-
-        trackFirstSeen(data)
-
-        const addedAtIndex = buildSortableAddedAtMap(data, historyRecords)
-        const { field, direction } = sortConfig.all
-        if (field === 'manual') {
-          applyManualOrder(data, usePreferenceStore().config.taskManualOrder.all, (fresh) => {
-            sortTasks(fresh, 'added-at', 'desc', addedAtIndex)
-          })
-        } else {
-          sortTasks(data, field, direction, addedAtIndex)
-        }
-      } else {
-        // In Progress: aria2 returns insertion-order; apply user sort.
-        data = await api.fetchTaskList({ type: 'active' })
-        data = data.filter((t) => !checkTaskIsEd2kSearch(t))
-        trackFirstSeen(data)
-        const addedAtIndex = buildSortableAddedAtMap(data, [])
-        const { field, direction } = sortConfig.progress
-        if (field === 'manual') {
-          applyManualOrder(data, usePreferenceStore().config.taskManualOrder.progress, (fresh) => {
-            sortTasks(fresh, 'added-at', 'desc', addedAtIndex)
-          })
-        } else {
-          sortTasks(data, field, direction, addedAtIndex)
-        }
-      }
-
-      const removing = new Set(removingGids.value)
-      data = data.filter((task) => !removing.has(task.gid))
-      if (requestId !== listRequestId || currentTaskTab() !== scope) return
-      taskList.value = data
-      updateCurrentTaskTotal(data.length)
-      clampCurrentTaskPage()
-      refreshCurrentTaskPageCount()
-      if (taskDetailVisible.value && currentTaskGid.value) {
-        try {
-          const fresh = await api.fetchTaskItemWithPeers({ gid: currentTaskGid.value })
-          if (fresh) updateCurrentTaskItem(fresh)
-        } catch (e) {
-          logger.debug('TaskStore.fetchPeers', e)
-          const fresh = data.find((t: Aria2Task) => t.gid === currentTaskGid.value)
-          if (fresh) updateCurrentTaskItem(fresh)
-        }
-      }
-    } catch (e) {
-      logger.debug('TaskStore.fetchList', e instanceof Error ? e.message : String(e))
+  function refreshHistory() {
+    if (!useDatabaseStore().isReady) return
+    if (historyWork) {
+      historyAgain = true
+      return
     }
+    historyWork = (async () => {
+      do {
+        historyAgain = false
+        try {
+          historyRecords = await useHistoryStore().getRecords()
+          if (await backfillWebStoppedHistory()) {
+            historyRecords = await useHistoryStore().getRecords()
+          }
+          publishSnapshot()
+        } catch (error) {
+          logger.warn('TaskStore.history', error instanceof Error ? error.message : String(error))
+        }
+      } while (historyAgain)
+    })().finally(() => {
+      historyWork = undefined
+    })
+  }
+
+  function refreshDetail() {
+    if (detailWork || !taskDetailVisible.value || !currentTaskGid.value) return
+    const gid = currentTaskGid.value
+    detailWork = api
+      .fetchTaskItemWithPeers({ gid })
+      .then((task) => {
+        if (taskDetailVisible.value && currentTaskGid.value === gid) {
+          currentTaskPeers.value = task.peers ?? []
+        }
+      })
+      .catch((error: unknown) => logger.debug('TaskStore.fetchPeers', error))
+      .finally(() => {
+        detailWork = undefined
+      })
+  }
+
+  /** Timers share the current read; actions request one fresh read after it. */
+  function fetchList(invalidate = true): Promise<void> {
+    if (!apiReady) return Promise.resolve()
+    if (invalidate) refreshHistory()
+    if (refreshWork) {
+      refreshAgain ||= invalidate
+      return refreshWork
+    }
+    refreshWork = (async () => {
+      do {
+        refreshAgain = false
+        try {
+          liveSnapshot = await api.fetchTaskList({ type: 'all' })
+          publishSnapshot()
+          refreshDetail()
+        } catch (error) {
+          logger.warn('TaskStore.fetchList', error instanceof Error ? error.message : String(error))
+        }
+      } while (refreshAgain)
+    })().finally(() => {
+      refreshWork = undefined
+    })
+    return refreshWork
   }
 
   function setTaskRemoving(gid: string, removing: boolean) {
@@ -380,6 +381,7 @@ export const useTaskStore = defineStore('task', () => {
       ...preferenceStore.config.taskManualOrder,
       [tab]: [...gids],
     }
+    preferenceStore.updatePreference({ taskSort, taskManualOrder })
     await preferenceStore.updateAndSave({ taskSort, taskManualOrder })
   }
 
@@ -387,11 +389,16 @@ export const useTaskStore = defineStore('task', () => {
     await saveManualOrder(createManualOrderSnapshot(taskList.value))
   }
 
-  async function saveVisiblePageManualOrder(visibleTasks: Aria2Task[]) {
+  async function saveVisiblePageManualOrder(gids: string[]) {
     const tab = currentTaskTab()
     const start = (taskPagination[tab].page - 1) * taskPagination.pageSize
+    const tasks = new Map(taskList.value.map((task) => [task.gid, task]))
+    const reordered = gids.flatMap((gid) => {
+      const task = tasks.get(gid)
+      return task ? [task] : []
+    })
     const nextList = [...taskList.value]
-    nextList.splice(start, visibleTasks.length, ...visibleTasks)
+    nextList.splice(start, reordered.length, ...reordered)
     taskList.value = nextList
     await saveManualOrder(createManualOrderSnapshot(nextList))
   }
@@ -416,7 +423,6 @@ export const useTaskStore = defineStore('task', () => {
         : { taskSort: nextTaskSort }
 
     preferenceStore.updatePreference(nextConfig)
-    taskListTransitionRevision.value += 1
     await fetchList()
     preferenceStore.updateAndSave(nextConfig).catch((e: unknown) => logger.error('TaskStore.changeCurrentSort', e))
   }
@@ -438,6 +444,7 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   function hideTaskDetail() {
+    if (taskDetailVisible.value) taskDetailClosing.value = true
     taskDetailVisible.value = false
   }
 
@@ -452,30 +459,9 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  async function addUri(data: {
-    uris: string[]
-    outs: string[]
-    options: Aria2EngineOptions
-    fileCategory?: {
-      enabled: boolean
-      categories: import('@shared/types').FileCategory[]
-      contexts?: Record<string, import('@shared/types').ExternalDownloadContext>
-    }
-  }) {
-    const gids: string[] = []
-    const httpAuthStore = useHttpAuthStore()
-
-    for (let index = 0; index < data.uris.length; index++) {
-      const uri = data.uris[index]
-      const options = await applySavedHttpAuth(uri, data.options, httpAuthStore)
-      const added = await api.addUri({
-        uris: [uri],
-        outs: [data.outs[index] ?? ''],
-        options,
-        fileCategory: data.fileCategory,
-      })
-      gids.push(...added)
-    }
+  async function addUri(data: AddUriParams) {
+    const gids = await api.addUri(data)
+    gids.forEach((gid) => useTaskSelectionStore().register(gid, true))
 
     const now = new Date().toISOString()
     const historyStore = useHistoryStore()
@@ -483,39 +469,18 @@ export const useTaskStore = defineStore('task', () => {
       registerAddedAt(gid, now)
       historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
     }
-    await Promise.all([fetchList(), refreshTaskCounts()])
+    await fetchList()
   }
 
   async function addUriAtomic(data: { uris: string[]; options: Aria2EngineOptions }) {
-    const httpAuthStore = useHttpAuthStore()
-    const options = await applySavedHttpAuth(data.uris[0] ?? '', data.options, httpAuthStore)
-    const gid = await api.addUriAtomic({ uris: data.uris, options })
+    const gid = await api.addUriAtomic(data)
+    useTaskSelectionStore().register(gid, true)
     const now = new Date().toISOString()
     registerAddedAt(gid, now)
     const historyStore = useHistoryStore()
     historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
-    await Promise.all([fetchList(), refreshTaskCounts()])
+    await fetchList()
     return gid
-  }
-
-  async function applySavedHttpAuth(
-    uri: string,
-    options: Aria2EngineOptions,
-    httpAuthStore: ReturnType<typeof useHttpAuthStore>,
-  ): Promise<Aria2EngineOptions> {
-    if (options['http-user'] || options.httpUser) return options
-
-    const credential = await httpAuthStore.findByUrl(uri)
-    if (!credential) return options
-
-    if (credential.id) {
-      httpAuthStore.markUsed(credential.id).catch((e) => logger.debug('httpAuth.markUsed', e))
-    }
-    return {
-      ...options,
-      'http-user': credential.username,
-      'http-passwd': credential.password,
-    }
   }
 
   /**
@@ -527,6 +492,7 @@ export const useTaskStore = defineStore('task', () => {
    */
   async function addMagnetUri(data: {
     uri: string
+    requestId?: string
     options: Aria2EngineOptions
     fileCategory?: { enabled: boolean; categories: import('@shared/types').FileCategory[] }
   }): Promise<string> {
@@ -542,6 +508,7 @@ export const useTaskStore = defineStore('task', () => {
       uris: [data.uri],
       outs: [],
       options,
+      ...(data.requestId ? { contexts: { [data.uri]: { requestId: data.requestId } } } : {}),
     })
     const gid = gids[0]
 
@@ -552,11 +519,10 @@ export const useTaskStore = defineStore('task', () => {
     historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
 
     if (policy !== 'download-all' || classifyFiles) {
-      const { useAppStore } = await import('@/stores/app')
-      useAppStore().queueMagnetSelection(gid, policy === 'prompt')
+      useTaskSelectionStore().register(gid, policy === 'prompt')
     }
 
-    await Promise.all([fetchList(), refreshTaskCounts()])
+    await fetchList()
     return gid
   }
 
@@ -570,13 +536,13 @@ export const useTaskStore = defineStore('task', () => {
     return api.getFiles({ gid })
   }
 
-  async function addTorrent(data: { torrent: string; options: Aria2EngineOptions }) {
+  async function addTorrent(data: { torrent: string; options: Aria2EngineOptions; requestId?: string }) {
     const gid = await api.addTorrent(data)
     const now = new Date().toISOString()
     registerAddedAt(gid, now)
     const historyStore = useHistoryStore()
     historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
-    await Promise.all([fetchList(), refreshTaskCounts()])
+    await fetchList()
     return gid
   }
 
@@ -599,21 +565,40 @@ export const useTaskStore = defineStore('task', () => {
     const historyStore = useHistoryStore()
     const policy = preferenceStore.config.magnetFileSelectionPolicy
     resubmittingGids.value = [...resubmittingGids.value, task.gid]
-    const operation = resubmitTask(
-      task,
-      mode,
-      { ...api, fetchList, saveSession: () => api.saveSession() },
-      historyStore,
-      policy,
-      async (gid) => {
-        const { useAppStore } = await import('@/stores/app')
-        useAppStore().queueMagnetSelection(gid, policy === 'prompt')
-      },
+    const operation = (
+      task.media && mode === 'retry'
+        ? api.retryMedia(task.gid).then((gid) => [gid])
+        : resubmitTask(task, mode, api, historyStore, policy, async (gid) => {
+            useTaskSelectionStore().register(gid, policy === 'prompt')
+          })
     )
-      .then(() => refreshTaskCounts())
-      .finally(() => {
+      .then(async (gids) => {
+        if (task.media) gids.forEach((gid) => useTaskSelectionStore().register(gid, true))
+        const replacement = gids[0]
+        if (!replacement) return
+        const addedAt = getAddedAt(task.gid) ?? new Date().toISOString()
+        registerAddedAt(replacement, addedAt)
+        historyStore.recordTaskBirth(replacement, addedAt).catch((error) => logger.warn('taskBirth.replace', error))
+        const order = preferenceStore.config.taskManualOrder
+        if (!TASK_SCOPES.some((scope) => order[scope].includes(task.gid))) return
+        await preferenceStore
+          .updateAndSave({
+            taskManualOrder: {
+              all: order.all.map((gid) => (gid === task.gid ? replacement : gid)),
+              progress: order.progress.map((gid) => (gid === task.gid ? replacement : gid)),
+              failed: order.failed.map((gid) => (gid === task.gid ? replacement : gid)),
+              completed: order.completed.map((gid) => (gid === task.gid ? replacement : gid)),
+            },
+          })
+          .catch((error) => logger.warn('TaskStore.replaceManualOrder', error))
+      })
+      .then(async () => {
+        await api.saveSession()
+      })
+      .finally(async () => {
         resubmissionPromises.delete(task.gid)
         resubmittingGids.value = resubmittingGids.value.filter((gid) => gid !== task.gid)
+        await fetchList()
       })
     resubmissionPromises.set(task.gid, operation)
     return operation
@@ -622,7 +607,9 @@ export const useTaskStore = defineStore('task', () => {
   return {
     currentList,
     taskCounts,
+    isCurrentListEmpty,
     taskDetailVisible,
+    taskDetailClosing,
     currentTaskGid,
     enabledFetchPeers,
     currentTaskItem,
@@ -631,13 +618,11 @@ export const useTaskStore = defineStore('task', () => {
     taskList,
     removingGids,
     resubmittingGids,
-    taskListTransitionRevision,
     taskPagination,
     currentTaskPageCount,
     setApi,
     changeCurrentList,
     fetchList,
-    refreshTaskCounts,
     saveManualOrder,
     saveCurrentManualOrder,
     saveVisiblePageManualOrder,

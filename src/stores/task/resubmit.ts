@@ -19,8 +19,6 @@ export interface TaskResubmissionApi {
   getOption: (params: { gid: string }) => Promise<Record<string, string>>
   removeTask: (params: { gid: string }) => Promise<string>
   removeTaskRecord: (params: { gid: string }) => Promise<string>
-  fetchList: () => Promise<unknown>
-  saveSession: () => Promise<string>
 }
 
 export interface TaskResubmissionHistoryApi {
@@ -44,7 +42,13 @@ function assertModeMatchesTask(task: Aria2Task, mode: TaskResubmissionMode): voi
 }
 
 async function readResubmissionOptions(task: Aria2Task, api: TaskResubmissionApi): Promise<Record<string, string>> {
-  const options: Record<string, string> = {}
+  const options: Record<string, string> = task.mediaOptions
+    ? Object.fromEntries(
+        Object.entries(changeKeysToCamelCase(task.mediaOptions)).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      )
+    : {}
   try {
     const original = await api.getOption({ gid: task.gid })
     for (const [key, value] of Object.entries(original)) {
@@ -116,7 +120,7 @@ export async function resubmitTask(
   historyApi: TaskResubmissionHistoryApi,
   magnetFileSelectionPolicy: MagnetFileSelectionPolicy,
   registerPendingMagnet: (gid: string) => void | Promise<void> = () => undefined,
-): Promise<void> {
+): Promise<string[]> {
   assertModeMatchesTask(task, mode)
 
   const descriptors = getRestartDescriptors(task, true)
@@ -125,6 +129,21 @@ export async function resubmitTask(
   const isBt = checkTaskIsBT(task)
   const options = await readResubmissionOptions(task, api)
   applyModeOptions(options, mode, isBt, magnetFileSelectionPolicy)
+  if (task.media) {
+    if (mode !== 'redownload') throw new Error('Media retries require the native retry operation')
+    const format = options.mediaFormat === 'mkv' ? 'mkv' : 'mp4'
+    const name =
+      task.files[0]?.path
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/\.[^.]*$/, '') || 'media'
+    options.out = `${name}.${format}`
+    options.mediaPauseAfterProbe = 'true'
+    // Representation IDs belong to one manifest inspection, never another task.
+    for (const key of ['mediaVideo', 'mediaAudio', 'mediaSubtitles']) {
+      if (task.media.tracks.some((track) => track.id === options[key])) options[key] = 'best'
+    }
+  }
 
   const createdGids: string[] = []
   try {
@@ -150,6 +169,5 @@ export async function resubmitTask(
     logger.debug('taskResubmission.removeHistoryRecord', error)
   }
 
-  await api.fetchList()
-  await api.saveSession()
+  return createdGids
 }

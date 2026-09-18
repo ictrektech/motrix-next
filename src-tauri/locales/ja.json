@@ -1,9 +1,5 @@
 {
   "_version": 1,
-  "database-conflict.body": "ダウンロード履歴データベースは新しいバージョンの Motrix Next で作成されたため、このバージョンとは互換性がありません。\n\n続行するにはダウンロード履歴をリセットする必要があります。\nダウンロード済みファイルには影響しません。",
-  "database-conflict.cancel": "終了",
-  "database-conflict.confirm": "リセットして起動",
-  "database-conflict.title": "データベースバージョンの不一致",
   "notification.bt-complete-body": "シード中：%{task_name}",
   "notification.bt-complete-title": "BT ダウンロード完了",
   "notification.download-batch-start-body": "ダウンロード中：%{task_name} 他 %{count} 件",
@@ -15,5 +11,7 @@
   "notification.download-start-title": "ダウンロード開始",
   "notification.ed2k-complete-body": "共有中：%{task_name}",
   "notification.ed2k-complete-title": "ED2K ダウンロード完了",
-  "notification.error-unknown": "不明なエラー"
+  "notification.error-unknown": "不明なエラー",
+  "notification.selection-title": "ダウンロード内容の選択待ち",
+  "notification.selection-body": "%{task_name}"
 }

@@ -3,7 +3,6 @@ import { DEFAULT_TASK_MANUAL_ORDER, DEFAULT_TASK_SORT } from '@/composables/useT
 import type { AppLogLevel, Aria2LogLevel } from '@shared/types'
 import type { I18nKey } from '@shared/i18nTypes'
 export const EMPTY_STRING = ''
-export const IS_PORTABLE = false
 
 export const APP_THEME = {
   AUTO: 'auto',
@@ -23,23 +22,16 @@ export interface ColorSchemeDefinition {
   variant?: 'source' | 'content'
 }
 
-/**
- * 10 curated preset color schemes spanning warm, cool, and neutral hues.
- *
- * Each seed is chosen for:
- * - Even HSL hue distribution (~36° apart) to avoid clustering
- * - WCAG AA contrast compliance when MCU-generated
- * - Aesthetic harmony across both light and dark M3 surfaces
- *
- * Sources: Tailwind CSS v4, macOS system colors, Catppuccin/Nord,
- * M3 Material Theme Builder, color psychology research.
- */
+/** Rayburst defaults and optional user-selected color seeds. */
+export const DEFAULT_COLOR_SCHEME_ID = 'rayburst'
+export const BRAND_COLOR = '#946ECE'
+
 export const COLOR_SCHEMES: ColorSchemeDefinition[] = [
+  { id: DEFAULT_COLOR_SCHEME_ID, labelKey: 'preferences.color-scheme-rayburst', seed: BRAND_COLOR },
   { id: 'amber', labelKey: 'preferences.color-scheme-amber', seed: '#E0A422' },
   { id: 'space', labelKey: 'preferences.color-scheme-space', seed: '#4A6CF7' },
   { id: 'mint', labelKey: 'preferences.color-scheme-mint', seed: '#10B981' },
   { id: 'rose', labelKey: 'preferences.color-scheme-rose', seed: '#F43F5E' },
-  { id: 'aurora', labelKey: 'preferences.color-scheme-aurora', seed: '#8B5CF6' },
   { id: 'coral', labelKey: 'preferences.color-scheme-coral', seed: '#F97316' },
   { id: 'glacier', labelKey: 'preferences.color-scheme-glacier', seed: '#06B6D4' },
   { id: 'evergreen', labelKey: 'preferences.color-scheme-evergreen', seed: '#15803D' },
@@ -48,13 +40,7 @@ export const COLOR_SCHEMES: ColorSchemeDefinition[] = [
 ]
 
 export const CUSTOM_COLOR_SCHEME_ID = 'custom'
-export const DEFAULT_CUSTOM_COLOR_SCHEME = '#737373'
-
-export const APP_RUN_MODE = {
-  STANDARD: 1,
-  TRAY: 2,
-  HIDE_TRAY: 3,
-}
+export const DEFAULT_CUSTOM_COLOR_SCHEME = BRAND_COLOR
 
 export const ADD_TASK_TYPE = {
   URI: 'uri',
@@ -75,8 +61,6 @@ export const APP_LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const satisf
 export const ARIA2_LOG_LEVELS = ['error', 'warn', 'info', 'debug', 'trace'] as const satisfies readonly Aria2LogLevel[]
 
 export const MAX_NUM_OF_DIRECTORIES = 5
-
-export const ENGINE_RPC_HOST = '127.0.0.1'
 export const ENGINE_RPC_PORT = 29100
 export const EXTENSION_API_PORT = 29110
 export const BT_LISTEN_PORT = 29120
@@ -99,7 +83,6 @@ export const SAFE_LIMIT_BT_MAX_PEERS = 128
 
 export const UNKNOWN_PEERID = '%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00'
 export const UNKNOWN_PEERID_NAME = 'unknown'
-export const GRAPHIC = '░▒▓█'
 
 export const ONE_SECOND = 1000
 export const ONE_MINUTE = ONE_SECOND * 60
@@ -107,9 +90,6 @@ export const ONE_HOUR = ONE_MINUTE * 60
 export const ONE_DAY = ONE_HOUR * 24
 export const COMPLETED_RECORD_RETENTION_FOREVER = 0
 export const COMPLETED_RECORD_RETENTION_OPTIONS = [0, 1, 7, 180, 365] as const
-
-// One Week
-export const AUTO_CHECK_UPDATE_INTERVAL = ONE_DAY * 7
 
 export const UPDATE_CHANNELS = ['stable', 'beta', 'latest'] as const
 
@@ -123,7 +103,7 @@ export const UPDATE_CHANNELS = ['stable', 'beta', 'latest'] as const
  * Each value is justified by industry research:
  * - Aria2 Next native defaults and accepted ranges
  * - BT client conventions (qBittorrent, Transmission, Deluge)
- * - Download manager standards (IDM, FDM, Motrix)
+ * - Download manager standards (IDM, FDM, Rayburst)
  * - Security best practices (UPnP off, rpcSecret generated at runtime)
  *
  * Dynamic values handled at runtime:
@@ -205,11 +185,6 @@ export const MAX_FILE_CATEGORIES = 20
  *  on categories loaded from persisted config (which may lack the field). */
 export const BUILTIN_CATEGORY_LABELS: ReadonlySet<string> = new Set(BUILTIN_CATEGORY_TEMPLATES.map((t) => t.label))
 
-/** Latest registered SQLite migration version for history.db.
- *  Keep this in sync with tauri_plugin_sql migrations in src-tauri/src/lib.rs
- *  and REGISTERED_VERSIONS in src-tauri/src/db_guard.rs. */
-export const CURRENT_DB_SCHEMA_VERSION = 3
-
 /** Official, independently hosted tracker-list sources. */
 export const TRACKER_SOURCE_OPTIONS = [
   {
@@ -227,15 +202,13 @@ export const TRACKER_SOURCE_OPTIONS = [
 export const DEFAULT_TRACKER_SOURCE = TRACKER_SOURCE_OPTIONS.map((source) => source.value)
 
 export const DEFAULT_APP_CONFIG = {
-  configVersion: 7,
-  dbSchemaVersion: CURRENT_DB_SCHEMA_VERSION,
   // ── Appearance ──────────────────────────────────────────────────
   theme: 'auto' as const,
-  colorScheme: 'amber',
+  colorScheme: DEFAULT_COLOR_SCHEME_ID,
   customColorScheme: DEFAULT_CUSTOM_COLOR_SCHEME,
   taskCardMode: 'full' as const,
+  showLogoWhenEmpty: true,
   reduceMotion: false,
-  taskListWatermark: true,
   sidebarTaskCounts: true,
   taskPageSize: 20,
   locale: 'auto',
@@ -297,6 +270,8 @@ export const DEFAULT_APP_CONFIG = {
   taskNotification: true, // users expect download-complete notifications
   notifyOnStart: true,
   notifyOnComplete: true, // main value of OS notification: background completion alert
+  mediaSelectBeforeDownload: true,
+  mediaDefaultFormat: 'mp4' as const,
   newTaskShowDownloading: true, // auto-navigate to downloads after adding task
   noConfirmBeforeDeleteTask: false, // require confirmation to prevent accidental deletion
   fileDeletionMode: 'trash' as const,
@@ -312,7 +287,7 @@ export const DEFAULT_APP_CONFIG = {
   lastCheckUpdateTime: 0,
 
   // ── Network & Security ────────────────────────────────────────
-  enableUpnp: true, // old Motrix=true; required for BitTorrent behind NAT
+  enableUpnp: true, // Allows inbound BitTorrent connections behind NAT.
   rpcListenPort: ENGINE_RPC_PORT,
   extensionApiPort: EXTENSION_API_PORT,
   allowRemoteAccess: false,
@@ -424,25 +399,6 @@ export const PROXY_SCOPE_OPTIONS = [
 
 export const NONE_SELECTED_FILES = 'none'
 export const SELECTED_ALL_FILES = 'all'
-
-export const IP_VERSION = {
-  V4: 4,
-  V6: 6,
-}
-
-export const LOGIN_SETTING_OPTIONS = {
-  // For Windows
-  args: ['--opened-at-login=1'],
-}
-
-export const TRAY_CANVAS_CONFIG = {
-  WIDTH: 66,
-  HEIGHT: 16,
-  ICON_WIDTH: 16,
-  ICON_HEIGHT: 16,
-  TEXT_WIDTH: 46,
-  TEXT_FONT_SIZE: 8,
-}
 
 export const COMMON_RESOURCE_TAGS = ['http://', 'https://', 'sftp://', 'magnet:', 'ed2k://']
 export const THUNDER_RESOURCE_TAGS = ['thunder://']

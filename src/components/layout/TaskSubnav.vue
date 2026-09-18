@@ -1,12 +1,10 @@
 <script setup lang="ts">
 /** @fileoverview Task scope navigation backed by the central task store. */
-import { computed, onMounted, watch, type Component } from 'vue'
+import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { PlayOutline, AlertCircleOutline, CheckmarkDoneOutline, ListOutline } from '@vicons/ionicons5'
 import SubnavPane, { type SubnavPaneItem } from '@/components/layout/SubnavPane.vue'
-import { isEngineReady } from '@/api/aria2'
-import { useAppStore } from '@/stores/app'
 import { usePreferenceStore } from '@/stores/preference'
 import { useTaskStore } from '@/stores/task'
 import type { TaskScope } from '@/composables/useTaskSort'
@@ -15,7 +13,6 @@ import type { I18nKey } from '@shared/i18nTypes'
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
-const appStore = useAppStore()
 const preferenceStore = usePreferenceStore()
 const taskStore = useTaskStore()
 
@@ -38,24 +35,6 @@ const subnavItems = computed<SubnavPaneItem[]>(() =>
       active: isActive(item.key),
     }
   }),
-)
-
-onMounted(() => {
-  if (preferenceStore.config.sidebarTaskCounts && isEngineReady()) void taskStore.refreshTaskCounts()
-})
-
-watch(
-  () => `${appStore.stat.numActive}:${appStore.stat.numWaiting}`,
-  () => {
-    if (preferenceStore.config.sidebarTaskCounts && isEngineReady()) void taskStore.refreshTaskCounts()
-  },
-)
-
-watch(
-  () => preferenceStore.config.sidebarTaskCounts,
-  (enabled) => {
-    if (enabled && isEngineReady()) void taskStore.refreshTaskCounts()
-  },
 )
 
 function nav(path: string) {

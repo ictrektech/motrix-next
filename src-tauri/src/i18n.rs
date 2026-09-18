@@ -11,14 +11,6 @@ pub struct NativeMessage {
     pub body: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DatabaseConflictTexts {
-    pub title: String,
-    pub body: String,
-    pub confirm: String,
-    pub cancel: String,
-}
-
 fn available_language_ids() -> &'static Vec<LanguageIdentifier> {
     static AVAILABLE: OnceLock<Vec<LanguageIdentifier>> = OnceLock::new();
     AVAILABLE.get_or_init(|| {
@@ -136,15 +128,6 @@ pub fn download_failed(locale: &str, task_name: &str, reason: Option<&str>) -> N
     }
 }
 
-pub fn database_conflict_texts(locale: &str) -> DatabaseConflictTexts {
-    DatabaseConflictTexts {
-        title: rust_i18n::t!("database-conflict.title", locale = locale).into_owned(),
-        body: rust_i18n::t!("database-conflict.body", locale = locale).into_owned(),
-        confirm: rust_i18n::t!("database-conflict.confirm", locale = locale).into_owned(),
-        cancel: rust_i18n::t!("database-conflict.cancel", locale = locale).into_owned(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,13 +147,8 @@ mod tests {
         assert_eq!(locales.len(), 27);
         for locale in locales {
             let notification = download_complete(&locale, "file.zip");
-            let database = database_conflict_texts(&locale);
             assert!(!notification.title.is_empty());
             assert!(notification.body.contains("file.zip"));
-            assert!(!database.title.is_empty());
-            assert!(!database.body.is_empty());
-            assert!(!database.confirm.is_empty());
-            assert!(!database.cancel.is_empty());
         }
     }
 

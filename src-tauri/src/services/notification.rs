@@ -155,9 +155,9 @@ enum NotificationDispatchResult {
 #[cfg(target_os = "linux")]
 pub fn linux_notification_identity() -> LinuxNotificationIdentity {
     LinuxNotificationIdentity {
-        app_name: "motrixnext",
-        icon: "motrix-next",
-        desktop_entry: "MotrixNext",
+        app_name: "rayburst",
+        icon: "rayburst",
+        desktop_entry: "Rayburst",
         urgency: notify_rust::Urgency::Normal,
     }
 }
@@ -244,7 +244,7 @@ pub fn build_task_start_notification(
     })
 }
 
-pub fn send_task_start_notification_from_names(
+pub async fn send_task_start_notification_from_names(
     app: &tauri::AppHandle,
     task_names: &[String],
     config: &RuntimeConfig,
@@ -254,7 +254,7 @@ pub fn send_task_start_notification_from_names(
         return Ok(false);
     };
 
-    send_native_notification(app, &content)?;
+    send_native_notification(app, &content).await?;
     log::debug!(
         "notification:submitted type={:?} locale={} webview_alive={}",
         content.kind,
@@ -264,7 +264,7 @@ pub fn send_task_start_notification_from_names(
     Ok(true)
 }
 
-pub fn send_app_notification(
+pub async fn send_app_notification(
     app: &tauri::AppHandle,
     title: &str,
     body: &str,
@@ -281,10 +281,10 @@ pub fn send_app_notification(
         body: body.to_string(),
         locale: "frontend".to_string(),
     };
-    send_native_notification(app, &content)
+    send_native_notification(app, &content).await
 }
 
-pub fn send_task_notification(
+pub async fn send_task_notification(
     app: &tauri::AppHandle,
     event_name: &str,
     event: &TaskEvent,
@@ -310,7 +310,7 @@ pub fn send_task_notification(
         content.title
     );
 
-    match send_platform_notification(app, &content) {
+    match send_platform_notification(app, &content).await {
         Ok(dispatch) => {
             let webview_alive = app.get_webview_window("main").is_some();
             log_notification_success(&content, event, dispatch, webview_alive);
@@ -326,11 +326,12 @@ pub fn send_task_notification(
     }
 }
 
-pub fn send_native_notification(
+pub async fn send_native_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<(), AppError> {
     send_platform_notification(app, content)
+        .await
         .map(|_| ())
         .map_err(AppError::Io)
 }
@@ -389,7 +390,7 @@ fn log_notification_success(
 }
 
 #[cfg(target_os = "linux")]
-fn send_platform_notification(
+async fn send_platform_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<NotificationDispatchResult, String> {
@@ -403,7 +404,8 @@ fn send_platform_notification(
         .urgency(identity.urgency)
         .summary(&content.title)
         .body(&content.body)
-        .show()
+        .show_async()
+        .await
         .map_err(|error| error.to_string())?;
     let registry = app.state::<LinuxNotificationRegistry>();
     let retention = registry.retain(handle);
@@ -416,7 +418,7 @@ fn send_platform_notification(
 }
 
 #[cfg(not(target_os = "linux"))]
-fn send_platform_notification(
+async fn send_platform_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<NotificationDispatchResult, String> {
@@ -446,6 +448,7 @@ mod tests {
 
     fn event() -> TaskEvent {
         TaskEvent {
+            media: None,
             gid: "g1".to_string(),
             name: "file.zip".to_string(),
             status: "complete".to_string(),
@@ -583,9 +586,9 @@ mod tests {
     #[test]
     fn linux_notification_identity_matches_gnome_desktop_entry() {
         let identity = linux_notification_identity();
-        assert_eq!(identity.app_name, "motrixnext");
-        assert_eq!(identity.icon, "motrix-next");
-        assert_eq!(identity.desktop_entry, "MotrixNext");
+        assert_eq!(identity.app_name, "rayburst");
+        assert_eq!(identity.icon, "rayburst");
+        assert_eq!(identity.desktop_entry, "Rayburst");
         assert_eq!(identity.urgency, notify_rust::Urgency::Normal);
     }
 }

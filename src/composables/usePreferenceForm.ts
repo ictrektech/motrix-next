@@ -26,7 +26,7 @@ export interface UsePreferenceFormOptions<T extends Record<string, unknown>> {
    * Map form values to the engine option snapshot.
    * Only system-level aria2 config keys belong here.
    */
-  buildSystemConfig: (form: T) => Record<string, string>
+  buildSystemConfig?: (form: T) => Record<string, string>
 
   /**
    * Optional pre-save hook. Return `false` to abort the save (e.g. validation failure).
@@ -107,7 +107,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
     }
 
     const prevConfig = { ...preferenceStore.config }
-    const previousSystemConfig = options.buildSystemConfig(options.buildForm())
+    const previousSystemConfig = options.buildSystemConfig?.(options.buildForm()) ?? {}
 
     const storeData: Partial<AppConfig> = options.transformForStore
       ? options.transformForStore(form.value as T)
@@ -119,7 +119,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
       message.error(t('preferences.value-range-error', { min: constraint.min, max: constraint.max }))
       return
     }
-    const systemConfig = options.buildSystemConfig(form.value as T)
+    const systemConfig = options.buildSystemConfig?.(form.value as T) ?? {}
     const savedForm = JSON.parse(JSON.stringify(form.value)) as T
     const hotConfig = filterHotReloadableKeys(systemConfig)
     const previousHotConfig = filterHotReloadableKeys(previousSystemConfig)
