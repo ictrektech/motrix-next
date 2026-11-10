@@ -1,0 +1,375 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>V-Burst API</title><style>body{font:16px/1.65 system-ui,sans-serif;color:#233247;background:#fff;max-width:1100px;margin:auto;padding:24px}nav{position:sticky;top:0;background:#fff;padding:12px 0;border-bottom:1px solid #ddd}nav a{margin-right:10px}a{color:#086a81}pre{overflow:auto;background:#f4f6f8;padding:16px;border-radius:8px}code{overflow-wrap:anywhere}table{display:block;overflow:auto;border-collapse:collapse}td,th{padding:8px;border:1px solid #ddd;text-align:left}h2,h3{scroll-margin-top:85px}#zh-doc{display:none}body:has(#zh:target) #en-doc,body:has(#zh-doc :target) #en-doc{display:none}body:has(#zh:target) #zh-doc,body:has(#zh-doc :target) #zh-doc{display:block}</style><span id="zh"></span><span id="en"></span><nav><strong>V-Burst API</strong> · <a href="#zh">简体中文</a> · <a href="#en">English</a></nav><main><article id="zh-doc" lang="zh-CN"><details open><summary>快速跳转</summary><a href="#zh-section-1">地址、身份与权限</a> · <a href="#zh-section-2">HTTP 接口</a> · <a href="#zh-section-3">RPC 字段、类型与完整方法</a> · <a href="#zh-section-4">下载状态、取消与删除</a> · <a href="#zh-section-5">可复制示例</a> · <a href="#zh-section-6">兼容和交付范围</a></details><h1>V-Burst VOS API 参考</h1>
+<h2 id="zh-section-1">地址、身份与权限</h2>
+<p>VOS 服务在容器47000端口监听；使用现有 VOS 地址加 <code>/app/com.ictrek.motrix-next</code>。包中没有映射宿主机端口，也未声明固定的自定义 host alias，不能把桌面扩展监听或猜测的容器名当成安装后的访问地址。独立 Docker 部署可自行显式映射47000。</p>
+<p>Node 包装服务和随包 aria2 不验证 VOS Bearer token，不签发个人 API Key，任务与下载目录属于共享应用服务，不按 VOS 用户隔离。任意 Authorization 头不会建立用户归属；V-Scheduler 的模型 Key 也不能认证下载管理接口。请使用已有的受信应用访问边界。</p>
+<p>引擎在容器内部 loopback29100监听，包装层的 <code>/jsonrpc</code> 转发 HTTP 和 WebSocket。当前启动器没有配置 rpc-secret；独立部署若配置了此项，则在 RPC params 首位加 <code>token:&lt;secret&gt;</code>，这不是 HTTP Bearer，也没有 Key 生成 API。不要为了测试修改已安装应用的现有设置。</p>
+<h2 id="zh-section-2">HTTP 接口</h2>
+<table>
+<thead>
+<tr>
+  <th>方法与路径</th>
+  <th>请求</th>
+  <th>返回和错误</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>GET /healthz</td>
+  <td>无正文，使用精确路径</td>
+  <td>200 text/plain <code>ok</code>，仅证明包装服务可响应，不等于下载执行成功</td>
+</tr>
+<tr>
+  <td>GET /api/runtime-info</td>
+  <td>无正文</td>
+  <td>200 JSON vosAppVersion/image/imageVersion/profile 均为字符串；未注入环境时为空。image 可包含完整镜像引用，不包含访问凭据</td>
+</tr>
+<tr>
+  <td>GET /api/path-exists?path=...</td>
+  <td>URL 编码的容器内绝对路径</td>
+  <td>200 <code>{exists:boolean}</code>；DOWNLOAD_DIR 外返回 false。宿主机路径不同，false 不是404，也不能证明有写权限</td>
+</tr>
+<tr>
+  <td>POST /jsonrpc</td>
+  <td>application/json，JSON-RPC2 请求</td>
+  <td>原生 aria2 result 或 error，HTTP200或400均需检查正文；引擎连接失败502 <code>{error:string}</code></td>
+</tr>
+<tr>
+  <td>GET /jsonrpc WebSocket Upgrade</td>
+  <td>标准握手</td>
+  <td>原生 RPC 帧和通知；断开不会取消下载</td>
+</tr>
+</tbody>
+</table>
+<p>其他路径可能返回静态文件或 SPA 的 HTML200，不能把它当成 API 成功。先检查 Content-Type 再解析 JSON。包装层没有通用 REST 文件上传/下载、VOS 账户或个人 Key 管理 API。</p>
+<h2 id="zh-section-3">RPC 字段、类型与完整方法</h2>
+<p>请求包含 jsonrpc=&quot;2.0&quot;、id、method 和 params。id 用于匹配响应，不提供下载提交的幂等保证；不确定 addUri 是否成功时先查已有 gid，不能盲目重提。成功包含 result，失败包含 error.code/message。批量请求是请求对象数组；system.multicall 则接收 methodName/params 对象数组，并返回逐项嵌套的结果或错误。</p>
+<p>GID 是字符串；原生字节计数、速度和多数数值选项也是十进制字符串。任务包含 gid/status/totalLength/completedLength/downloadSpeed/uploadSpeed，可选 files、bittorrent、errorCode/errorMessage、following/followedBy/belongsTo。files 中有 index/path/length/completedLength/selected/uris，URI 条目有 uri/status；字段随任务种类和请求 keys 而异。</p>
+<p>通过 system.listMethods/listNotifications 查询<strong>实际运行引擎</strong>支持项。VOS 镜像安装 Debian aria2，桌面上游的 Aria2 Next/ED2K/媒体扩展不因此自动可用。标准方法的选项和原生返回字段详见 <a href="https://aria2.github.io/manual/en/html/aria2c.html#rpc-interface">aria2 RPC 原生参考</a>，不要套用 V-Scheduler 的返回封装。</p>
+<table>
+<thead>
+<tr>
+  <th>方法组</th>
+  <th>参数（独立配置 RPC token 时放在其后）</th>
+  <th>返回值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>aria2.addUri</td>
+  <td>uris:string[], options:object 可选, position:integer 可选</td>
+  <td>gid:string; 同一个下载可使用多个镜像 URL</td>
+</tr>
+<tr>
+  <td>aria2.addTorrent</td>
+  <td>torrent:Base64, uris:string[] 可选, options:object 可选, position:integer 可选</td>
+  <td>gid:string; 种子以 Base64 放入 JSON，不是 multipart</td>
+</tr>
+<tr>
+  <td>aria2.addMetalink</td>
+  <td>metalink:Base64, options:object 可选, position:integer 可选</td>
+  <td>gid:string[]</td>
+</tr>
+<tr>
+  <td>aria2.tellStatus</td>
+  <td>gid:string, keys:string[] 可选</td>
+  <td>原生任务对象</td>
+</tr>
+<tr>
+  <td>aria2.tellActive</td>
+  <td>keys:string[] 可选</td>
+  <td>任务数组</td>
+</tr>
+<tr>
+  <td>aria2.tellWaiting / aria2.tellStopped</td>
+  <td>offset:integer, num:integer, keys:string[] 可选</td>
+  <td>分页任务数组，限制每次查询数量</td>
+</tr>
+<tr>
+  <td>aria2.pause / forcePause / unpause</td>
+  <td>gid:string</td>
+  <td>gid:string; 暂停保留已有文件</td>
+</tr>
+<tr>
+  <td>aria2.pauseAll / forcePauseAll / unpauseAll</td>
+  <td>无</td>
+  <td>原生状态字符串; 影响整个共享服务</td>
+</tr>
+<tr>
+  <td>aria2.remove / forceRemove</td>
+  <td>gid:string</td>
+  <td>gid:string; 取消任务，不是通用文件删除</td>
+</tr>
+<tr>
+  <td>aria2.getFiles / getUris / getPeers / getServers</td>
+  <td>gid:string</td>
+  <td>原生文件/URI/peer/server数组</td>
+</tr>
+<tr>
+  <td>aria2.getOption / changeOption</td>
+  <td>gid:string, plus options:object for change</td>
+  <td>选项映射 / 原生状态字符串</td>
+</tr>
+<tr>
+  <td>aria2.getGlobalOption / changeGlobalOption</td>
+  <td>无 / options:object</td>
+  <td>选项映射 / 原生状态字符串; 仅运行时可修改选项生效</td>
+</tr>
+<tr>
+  <td>aria2.changePosition</td>
+  <td>gid:string, pos:integer, how:string</td>
+  <td>新位置:number</td>
+</tr>
+<tr>
+  <td>aria2.changeUri</td>
+  <td>gid:string, fileIndex:integer, delUris:string[], addUris:string[], position:integer 可选</td>
+  <td>原生删除/新增计数</td>
+</tr>
+<tr>
+  <td>aria2.removeDownloadResult</td>
+  <td>gid:string</td>
+  <td>原生状态字符串; 移除已完成/停止任务记录</td>
+</tr>
+<tr>
+  <td>aria2.purgeDownloadResult</td>
+  <td>无</td>
+  <td>原生状态字符串; 清除停止记录，不删除已下载文件</td>
+</tr>
+<tr>
+  <td>aria2.getGlobalStat</td>
+  <td>无</td>
+  <td>downloadSpeed/uploadSpeed/numActive/numWaiting/numStopped/numStoppedTotal 均为字符串</td>
+</tr>
+<tr>
+  <td>aria2.getVersion</td>
+  <td>无</td>
+  <td><code>{version:string,enabledFeatures:string[]}</code></td>
+</tr>
+<tr>
+  <td>aria2.getSessionInfo</td>
+  <td>无</td>
+  <td><code>{sessionId:string}</code></td>
+</tr>
+<tr>
+  <td>aria2.saveSession</td>
+  <td>无</td>
+  <td>原生状态字符串; 按 ARIA2_SESSION_FILE 持久化</td>
+</tr>
+<tr>
+  <td>aria2.shutdown / forceShutdown</td>
+  <td>无</td>
+  <td>原生状态字符串; 停止共享引擎，不是单个任务</td>
+</tr>
+<tr>
+  <td>system.listMethods / system.listNotifications</td>
+  <td>无</td>
+  <td>string[]</td>
+</tr>
+<tr>
+  <td>system.multicall</td>
+  <td>calls:object[]</td>
+  <td>逐项嵌套结果/错误数组</td>
+</tr>
+</tbody>
+</table>
+<h2 id="zh-section-4">下载状态、取消与删除</h2>
+<p>提交后保存 gid，轮询 tellStatus 到 complete/error/removed，失败时读取 errorCode/errorMessage。受理不是完成；从未开始的暂停任务移除后可能立即消失，后续 tellStatus 返回 HTTP400 和原生 GID-not-found 错误，不能要求每次取消都保留停止记录。BT 下载完成后仍可能做种。pause/remove 与删除本地数据不同；轮询或 WebSocket 断开也不会取消任务。aria2 会话保存到 <code>/downloads/.aria2/aria2.session</code>，浏览器还保存自己的界面历史，后者不是引擎任务的唯一事实来源。</p>
+<h2 id="zh-section-5">可复制示例</h2>
+<pre><code class="language-bash">BASE='http://&lt;vos-host&gt;:&lt;vos-port&gt;/app/com.ictrek.motrix-next'
+curl --fail-with-body &quot;$BASE/api/runtime-info&quot;
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;methods&quot;,&quot;method&quot;:&quot;system.listMethods&quot;,&quot;params&quot;:[]}'
+# Add paused first; this does not start network transfer.
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;submit-1&quot;,&quot;method&quot;:&quot;aria2.addUri&quot;,&quot;params&quot;:[[&quot;https://example.com/file.zip&quot;],{&quot;pause&quot;:&quot;true&quot;,&quot;dir&quot;:&quot;/downloads&quot;}]}'
+# Replace &lt;gid&gt; with result; error may still be returned with HTTP200.
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;query-1&quot;,&quot;method&quot;:&quot;aria2.tellStatus&quot;,&quot;params&quot;:[&quot;&lt;gid&gt;&quot;,[&quot;gid&quot;,&quot;status&quot;,&quot;totalLength&quot;,&quot;completedLength&quot;,&quot;errorCode&quot;,&quot;errorMessage&quot;]]}'
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;cancel-1&quot;,&quot;method&quot;:&quot;aria2.remove&quot;,&quot;params&quot;:[&quot;&lt;gid&gt;&quot;]}'
+</code></pre>
+<h2 id="zh-section-6">兼容和交付范围</h2>
+<p>API 接入指南为独立 VOS 页面和 <code>/api-guide.html</code> 静态文档，带快速目录。不修改下载行为、鉴权策略、端口、共享目录、RPC secret 或调度契约。本轮只更新源码，随本应用下次发版进入安装界面。</p>
+</article><article id="en-doc" lang="en"><details open><summary>Quick navigation</summary><a href="#en-section-1">Addresses and authentication</a> · <a href="#en-section-2">HTTP endpoints</a> · <a href="#en-section-3">JSON-RPC envelope and types</a> · <a href="#en-section-4">Task lifecycle and method catalog</a> · <a href="#en-section-5">Copyable examples</a> · <a href="#en-section-6">Compatibility and release scope</a></details><h1>V-Burst VOS API reference</h1>
+<h2 id="en-section-1">Addresses and authentication</h2>
+<p>The VOS web service listens on container port47000. Use the existing VOS origin plus <code>/app/com.ictrek.motrix-next</code>, then append the paths below. The package does not map a host port or declare a stable custom host alias. Do not advertise a guessed <code>motrix-next</code> address or the desktop extension listener as an installed VOS endpoint. Independent Docker deployments may explicitly publish47000 themselves.</p>
+<p>The Node wrapper and bundled aria2 service do not validate VOS Bearer tokens or issue personal API keys. Tasks and downloads belong to the shared application service, not individual VOS users. An arbitrary Authorization header does not establish user ownership. Keep calls within the existing trusted application boundary. V-Scheduler inference/model keys do not authenticate download-manager APIs.</p>
+<p>Native aria2 is bound to loopback inside the container on29100; <code>/jsonrpc</code> proxies HTTP and WebSocket to it. The shipped launcher does not configure <code>--rpc-secret</code>. A separately configured aria2 server can require <code>token:&lt;secret&gt;</code> as the first RPC parameter; this is an aria2 RPC secret, not an HTTP Bearer token or a Key-generation API. Do not change an installed user's settings to test examples.</p>
+<h2 id="en-section-2">HTTP endpoints</h2>
+<table>
+<thead>
+<tr>
+  <th>Method and path</th>
+  <th>Request</th>
+  <th>Response and errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>GET <code>/healthz</code></td>
+  <td>No body</td>
+  <td>200 <code>text/plain</code> <code>ok</code>; this checks the wrapper, not successful download execution. The exact path is required.</td>
+</tr>
+<tr>
+  <td>GET <code>/api/runtime-info</code></td>
+  <td>No body</td>
+  <td>200 JSON <code>{vosAppVersion:string,image:string,imageVersion:string,profile:string}</code>; empty fields mean the environment did not provide them. <code>image</code> can be a full registry reference. No credentials are returned.</td>
+</tr>
+<tr>
+  <td>GET <code>/api/path-exists?path=...</code></td>
+  <td>URL-encoded absolute container path</td>
+  <td>200 JSON <code>{exists:boolean}</code>. Paths outside DOWNLOAD_DIR return false. Host paths differ from container paths. False is not an HTTP404 or proof of write permission.</td>
+</tr>
+<tr>
+  <td>POST <code>/jsonrpc</code></td>
+  <td>JSON-RPC2 body, application/json</td>
+  <td>Native aria2 response, including JSON-RPC errors with HTTP200 or400. Connection failure returns HTTP502 JSON <code>{error:string}</code>.</td>
+</tr>
+<tr>
+  <td>GET <code>/jsonrpc</code> with WebSocket upgrade</td>
+  <td>Standard WebSocket handshake</td>
+  <td>Native aria2 JSON-RPC frames and notifications. Disconnect does not cancel a download.</td>
+</tr>
+</tbody>
+</table>
+<p>Other requests serve web assets or SPA fallback; an HTML200 is not a valid API response. Check Content-Type before parsing JSON. The wrapper has no generic REST file-upload/download or user-account endpoint.</p>
+<h2 id="en-section-3">JSON-RPC envelope and types</h2>
+<p>Send <code>{jsonrpc:&quot;2.0&quot;,id:&quot;stable-client-id&quot;,method:&quot;aria2.getVersion&quot;,params:[]}</code>. Match responses by id: success has result; failure has error with code/message. A batch is an array of independent request objects. <code>system.multicall</code> instead takes an array of <code>{methodName,params}</code> and has its own nested success/error results. A request ID correlates a response; it does <strong>not</strong> guarantee idempotent submission. Save the returned gid and query it before retrying an uncertain addUri/addTorrent request.</p>
+<p>GIDs are strings. Native byte counters, speeds and many numeric options are decimal strings; do not assume JSON numbers. tellStatus/tellActive/tellWaiting/tellStopped return task objects with gid/status/totalLength/completedLength/downloadSpeed/uploadSpeed and optional files, bittorrent, errorCode/errorMessage, following/followedBy/belongsTo. File items contain index/path/length/completedLength/selected/uris; uri entries contain uri/status. Availability depends on task type and requested keys.</p>
+<p>Use <code>system.listMethods</code> and <code>system.listNotifications</code> to discover the <strong>running engine's</strong> method set. The VOS image installs Debian aria2, while the desktop upstream may use Aria2 Next extensions; desktop commands such as ED2K/media helpers are not automatically supported by this wrapper. The <a href="https://aria2.github.io/manual/en/html/aria2c.html#rpc-interface">native RPC reference</a> defines standard method-specific option and result fields. Preserve native extensions rather than imposing a Scheduler response envelope.</p>
+<h2 id="en-section-4">Task lifecycle and method catalog</h2>
+<table>
+<thead>
+<tr>
+  <th>Method group</th>
+  <th>Parameters after any configured RPC token</th>
+  <th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>aria2.addUri</td>
+  <td>uris:string[], options:object optional, position:integer optional</td>
+  <td>gid:string; one download may use several mirror URLs</td>
+</tr>
+<tr>
+  <td>aria2.addTorrent</td>
+  <td>torrent:Base64, uris:string[] optional, options:object optional, position:integer optional</td>
+  <td>gid:string; binary torrent is encoded in JSON, not multipart</td>
+</tr>
+<tr>
+  <td>aria2.addMetalink</td>
+  <td>metalink:Base64, options:object optional, position:integer optional</td>
+  <td>gid:string[]</td>
+</tr>
+<tr>
+  <td>aria2.tellStatus</td>
+  <td>gid:string, keys:string[] optional</td>
+  <td>Native task object</td>
+</tr>
+<tr>
+  <td>aria2.tellActive</td>
+  <td>keys:string[] optional</td>
+  <td>Task array</td>
+</tr>
+<tr>
+  <td>aria2.tellWaiting / aria2.tellStopped</td>
+  <td>offset:integer, num:integer, keys:string[] optional</td>
+  <td>Paged task array; keep pagination bounded</td>
+</tr>
+<tr>
+  <td>aria2.pause / forcePause / unpause</td>
+  <td>gid:string</td>
+  <td>gid:string; pause preserves partial files</td>
+</tr>
+<tr>
+  <td>aria2.pauseAll / forcePauseAll / unpauseAll</td>
+  <td>none</td>
+  <td>Native status string; affects the shared service</td>
+</tr>
+<tr>
+  <td>aria2.remove / forceRemove</td>
+  <td>gid:string</td>
+  <td>gid:string; cancels the task, not a general filesystem delete</td>
+</tr>
+<tr>
+  <td>aria2.getFiles / getUris / getPeers / getServers</td>
+  <td>gid:string</td>
+  <td>Native file/URI/peer/server arrays</td>
+</tr>
+<tr>
+  <td>aria2.getOption / changeOption</td>
+  <td>gid:string, plus options:object for change</td>
+  <td>Option map / native status string</td>
+</tr>
+<tr>
+  <td>aria2.getGlobalOption / changeGlobalOption</td>
+  <td>none / options:object</td>
+  <td>Option map / native status string; only runtime-changeable options apply</td>
+</tr>
+<tr>
+  <td>aria2.changePosition</td>
+  <td>gid:string, pos:integer, how:string</td>
+  <td>New position:number</td>
+</tr>
+<tr>
+  <td>aria2.changeUri</td>
+  <td>gid:string, fileIndex:integer, delUris:string[], addUris:string[], position:integer optional</td>
+  <td>Native removed/added counts</td>
+</tr>
+<tr>
+  <td>aria2.removeDownloadResult</td>
+  <td>gid:string</td>
+  <td>Native status string; removes a finished/stopped result record</td>
+</tr>
+<tr>
+  <td>aria2.purgeDownloadResult</td>
+  <td>none</td>
+  <td>Native status string; clears stopped results, not downloaded files</td>
+</tr>
+<tr>
+  <td>aria2.getGlobalStat</td>
+  <td>none</td>
+  <td>downloadSpeed/uploadSpeed/numActive/numWaiting/numStopped/numStoppedTotal as strings</td>
+</tr>
+<tr>
+  <td>aria2.getVersion</td>
+  <td>none</td>
+  <td><code>{version:string,enabledFeatures:string[]}</code></td>
+</tr>
+<tr>
+  <td>aria2.getSessionInfo</td>
+  <td>none</td>
+  <td><code>{sessionId:string}</code></td>
+</tr>
+<tr>
+  <td>aria2.saveSession</td>
+  <td>none</td>
+  <td>Native status string; persists according to ARIA2_SESSION_FILE</td>
+</tr>
+<tr>
+  <td>aria2.shutdown / forceShutdown</td>
+  <td>none</td>
+  <td>Native status string; stops the shared engine, not one task</td>
+</tr>
+<tr>
+  <td>system.listMethods / system.listNotifications</td>
+  <td>none</td>
+  <td>string[]</td>
+</tr>
+<tr>
+  <td>system.multicall</td>
+  <td>calls:object[]</td>
+  <td>Per-call nested result/error array</td>
+</tr>
+</tbody>
+</table>
+<p>Submit, save the gid, poll tellStatus until complete/error/removed, and inspect errorCode/errorMessage on failures. Download acceptance is not completion. A never-started paused task may disappear immediately after removal, so a later tellStatus can return HTTP400 with a native GID-not-found error; do not insist that every cancellation retains a stopped result. A completed BitTorrent task may continue seeding; pause/remove has different effects from deleting its local data. Polling or WebSocket disconnect is not cancellation. Completed/stopped records can be cleared separately from files. The aria2 session is stored under <code>/downloads/.aria2/aria2.session</code>; the browser also has local UI history, which is not the engine's task source of truth.</p>
+<h2 id="en-section-5">Copyable examples</h2>
+<pre><code class="language-bash">BASE='http://&lt;vos-host&gt;:&lt;vos-port&gt;/app/com.ictrek.motrix-next'
+curl --fail-with-body &quot;$BASE/api/runtime-info&quot;
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;methods&quot;,&quot;method&quot;:&quot;system.listMethods&quot;,&quot;params&quot;:[]}'
+# Add paused first; this does not start network transfer.
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;submit-1&quot;,&quot;method&quot;:&quot;aria2.addUri&quot;,&quot;params&quot;:[[&quot;https://example.com/file.zip&quot;],{&quot;pause&quot;:&quot;true&quot;,&quot;dir&quot;:&quot;/downloads&quot;}]}'
+# Replace &lt;gid&gt; with result; error may still be returned with HTTP200.
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;query-1&quot;,&quot;method&quot;:&quot;aria2.tellStatus&quot;,&quot;params&quot;:[&quot;&lt;gid&gt;&quot;,[&quot;gid&quot;,&quot;status&quot;,&quot;totalLength&quot;,&quot;completedLength&quot;,&quot;errorCode&quot;,&quot;errorMessage&quot;]]}'
+curl --fail-with-body &quot;$BASE/jsonrpc&quot; -H 'Content-Type: application/json' -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:&quot;cancel-1&quot;,&quot;method&quot;:&quot;aria2.remove&quot;,&quot;params&quot;:[&quot;&lt;gid&gt;&quot;]}'
+</code></pre>
+<h2 id="en-section-6">Compatibility and release scope</h2>
+<p>The API Guide is a separate VOS page and a static <code>/api-guide.html</code> asset with quick navigation. No download behavior, identity policy, host mappings, shared directory, RPC secret or scheduler contract changes. Source documentation ships in this app's next release; this documentation task does not publish its image or app package.</p>
+</article></main></html>

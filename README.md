@@ -184,3 +184,7 @@ docker run -d \
 ## License
 
 [MIT](https://opensource.org/licenses/MIT) - Copyright (c) 2025-present AnInsomniacy
+
+## VOS API guide
+
+The VOS API Guide page and `/api-guide.html` document [all wrapper endpoints and the native JSON-RPC lifecycle](ictrek.app/docs/api-reference.md), including shared-service authentication, task versus file deletion, pagination, errors and HTTP/WebSocket behavior. Documentation changes ship with the next VOS app release.
