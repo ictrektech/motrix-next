@@ -11,7 +11,7 @@ x-motrix-next-base: &motrix-next-base
   labels:
     - "traefik.enable=true"
     - "traefik.docker.network=vos_default"
-    - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open.rule=PathPrefix(`/app/com.ictrek.motrix-next`) && HeadersRegexp(`Sec-Fetch-Dest`, `document`)"
+    - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open.rule=(Path(`/app/com.ictrek.motrix-next`) || Path(`/app/com.ictrek.motrix-next/`)) && HeaderRegexp(`Sec-Fetch-Dest`, `document`)"
     - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open.priority=1000"
     - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open.service=${COMPOSE_PROJECT_NAME:-motrix-next}-web"
     - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-motrix-next}-top-open.middlewares=${COMPOSE_PROJECT_NAME:-motrix-next}-top-open-redirect"
