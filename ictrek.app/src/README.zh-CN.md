@@ -21,3 +21,5 @@ ${MOTRIX_SHARED_PATH:-/data/vos_workspace/motrix}
 ```
 
 下载文件和 aria2 会话状态放在该根目录的 `downloads/` 子目录，容器内映射路径为 `/downloads`，aria2 session 文件为 `/downloads/.aria2/aria2.session`。`MOTRIX_SHARED_PATH` 使用 `com.ictrek.download.storage` 共享提示，其他应用声明相同 hint 后可选择同一个公共目录。
+
+在使用 Traefik v3 的 VOS 上，从浏览器直接打开应用根地址会跳转到 VOS 应用页面。嵌入页面和 API 请求沿用原有路由。

@@ -21,3 +21,5 @@ ${MOTRIX_SHARED_PATH:-/data/vos_workspace/motrix}
 ```
 
 Downloads and aria2 session state are stored in its `downloads/` subdirectory. The container path is `/downloads`, and the aria2 session file is `/downloads/.aria2/aria2.session`. `MOTRIX_SHARED_PATH` declares the `com.ictrek.download.storage` sharing hint, so other apps declaring the same hint can select this public directory.
+
+On VOS with Traefik v3, opening the app root directly in a browser redirects to its VOS page. Embedded pages and API requests use their existing routes.
