@@ -1,5 +1,7 @@
 # V-Burst VOS 应用
 
+在 VOS 的「应用管理 → 应用抽屉 → V-Burst」分组中打开「API 接入指南」。
+
 V-Burst 提供基于 aria2 的下载任务管理 Web UI。
 
 ## 访问方式

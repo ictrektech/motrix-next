@@ -1,5 +1,7 @@
 # V-Burst VOS App
 
+In VOS, open **Application Management → App Drawer → V-Burst → API Guide**.
+
 V-Burst provides a web UI for aria2 download task management.
 
 ## Access
